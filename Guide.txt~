@@ -1,0 +1,151 @@
+Here is a quick guide to running the python disk modeling code (which is based heavily on Katherine Rosenfeld's original idl code for modeling HD 163296, Rosenfeld et al. 2013).
+[Nov 21, 2016]
+
+Disk Structure:
+     The code is currently split into two main programs; one calculates the disk structure while the other performs the radiative transfer. The first set of code is contained in the file disk.py. This defines the 'Disk' class of objects. A particular instance of this class can be created, based on a set of input parameters. This object can then be fed to the radiative transfer code, which creates the model image.
+
+The simplest way to create a disk object within python is:
+    In [1]: from disk import *
+    In [2]: x = Disk()
+
+
+This creates an instance of the Disk class, called 'x', with all of the generic parameters. To specify the structure parameters, use the 'params' and 'obs' keywords. 
+     params = [qq            # - Radial power law index for temperature (T(r)~r^qq)
+     	      ,Mdisk         # - Disk gas mass, in solar masses
+	      ,pp            # - Radial power law index for surface density (Sigma~r^pp)
+	      ,Rin           # - Disk inner edge, in AU
+	      ,Rout          # - Disk outer edge, in AU
+	      ,Rc            # - Disk critical radius in AU
+	      ,theta         # - inclination, in degrees
+	      ,Mstar         # - Stellar mass, in solar masses
+	      ,Xco           # - CO gas fraction, relative to molecular hydrogem
+	      ,vturb         # - turbulent velocity, as a fraction of the CO broadening
+	      ,Zq            # - Zq parameter for vertical temperature profile, in AU
+	      ,Tmid          # - Midplane temperature at 150 AU
+	      ,Tatm          # - Atmosphere temperature at 150 AU
+	      ,[Sig1,Sig2]   # - Upper and lower column density boundaries for the molecular zone, in units of 1.59e21 particles/cm^2
+	      ,[Rain,Raout]  # - Inner and outer boundaries for the distribution of the molecule within the disk 
+	      ,-1]           # - handedness of rotation
+
+      obs =   [nr      # - number of radial bins in radiative transfer grid
+      	      ,nphi    # - number of phi bins in radiative transfer grid
+	      ,nz      # - number of z grids in radiative transfer grid
+	      ,zmax]   # - Maximum height of disk grid, in AU
+
+
+An example of creating a disk with specific set of parameters:
+    In [1]: from disk import *
+    In [2]: x = Disk(params=[-0.529,0.119,1.,10.,1000.,135.6,51.5,2.3,1e-4,0.081,26.49,19.,50.03])
+
+    Other features/options within Disk:
+    There are additional options and functions available within the Disk class that may be useful for more advanced modeling. 
+
+    Additional parameters than can be specified during creation of a Disk object:
+
+    :param rtg (default = True):
+    Setting this keyword to True causes the code to map the density structure from the original grid onto the radiative transfer grid (which is necessary to do the radiative transfer with the next piece of code). The best option is simply to leave this as True. Turning this off is useful if you first want to create a disk object, and then specify radiative transfer grids (with different obs values) for e.g. different emission lines. If rtg is set to False then you can use x.set_obs(obs) to set the observational parameters and x.set_rt_grid() to create the radiative transfer grid
+
+    :param vcs (default = True):
+    By default the turbulence is parameterized as a fraction of the local thermal broadening of CO (which is ~3.438x smaller than the local sound speed). Set this parameter to False to instead specify the turbulent velocity as a fixed speed (e.g. vturb=0.1km/sec).
+
+    :param exp_temp (default = False):
+    Set this parameter to True to use an exponential profile for the vertical temperature profile instead of the Dartois Type II structure. Tmid still specifies the temperature at the midplane, while Tatm still specifies the temperature at height Zq.
+
+    There also a number of functions within the Disk object but the two most useful are Disk.plot_structure and Disk.calcH. Disk.plot_structure creates a plot showing the density and temperature structure ONLY in the region of the disk with CO. Disk.calcH calculates the pressure scale height H as a function of radius based the vertical density profile (effectively H=cs/Omega where cs is defined using the midplane temperature). Specify return_pow=True to return H at r=100AU and the power law index for a power law fit to H(r). 
+
+
+
+
+
+Radiative transfer:
+     Once the disk has been created, the raditive transfer code can be called. There are a series of functions defined within the file single_model.py that handle the radiative transfer (plus some ancillary things). To load these functions into your python session, use the command 'run single_model.py' Once this is complete you can call the individual functions.
+
+     The main function is called 'total_model'. This takes in a Disk object, along with a number of other parameters, and outputs a model fits image. The simplest call would be:
+
+     In [1]: from disk import *
+     In [2]: run single_model.py
+     In [3]: x=Disk()
+     In [4]: total_model(x,miriad=False)
+
+You should now find a file called 'testpy_almap.fits' which is the model fits image. (In this simple example the miriad keyword is set to False so that it does not try to create a visibility fits file. For that to work you need an ALMA dataset to compare to, which by default you might not). 
+
+There are quite a few parameters within total_model that can be used to specify the e.g. resolution of the model image, resolution of the spectrum. For completeness, here is a full list:
+
+    :param disk:
+    A Disk object. This contains the structure of the disk over which the radiative transfer calculation will be done.
+
+    :param imres: (default = 0.05)
+    Model image resolution in arcsec. Should be the pixel size in the data image.
+
+    :param distance: (default = 122)
+    Distance in parsec to the target
+
+    :param chanmin: (default = -2.24)
+    Minimum channel velocity in km/sec. This value is relative to the line center (ie the minimum velocity assuming the line were centered at a velocity of 0).
+    
+    :param nchans: (default = 15)
+    Number of channels to model
+
+    :param chanstep: (default = 0.32)
+    Resolution of each channel, in km/sec
+
+    :param flipme: (default = True)
+    To save time, the code can calculate the radiative transfer for half of the line, and then mirror these results to fill in the rest of the line. Set flipme=1 to perform this mirroring, or use flipme=0 to compute the entire line profile
+
+    :param Jnum: (default = 2)
+    The lower J quantum of the transition of interest. Ex: For the CO J=3-2 transition, set Jnum=2
+
+    :param freq0: (default = 345.79599)
+    The rest frequency of the transition, in GHz.
+
+    :param xnpix: (default = 512)
+    Number of pixels in model image. xnpix*imres will equal the desired width of the image.
+    
+    :param vsys: (default = 5.79)
+    Systemic velocity of the star, in km/sec
+
+    :param PA: (default = 312.8)
+    position angle of the disk
+
+    :param offs: (default = [0.150,0.05])
+    Disk offset from image center, in arcseconds
+
+    :param modfile: (default = 'model/testpy_alma')
+    The base name for the model files. This code will create modfile+'.p.fits' (the model image) and modfile+'.p.vis.fits' (a fits file with the model visibilities)
+
+    :param datfile: (default = 'data/HD163296.CO32.regridded.cen15')
+    The base name for the data files. You need to have datfile+'.vis' (data visibilities in miriad uv format) and datfile+'.cm' (cleaned map of data) for the code to work. The visibility file is needed when running uvmodel and the cleaned map is needed for the header keywords.
+
+    :param miriad: (default = False)
+    Set to True to call a set of miriad tasks that convert the model fits image to a visbility fits file. If this is False, then there is no need to set the datfile keyword (the miriad tasks are the only place where they are used).
+
+
+    - A note about chanmin/chanstep/nchans and vsys: The radiative transfer portion of the code works best if the central channel corresponds to the center of the line. Using flipme without setting the central channel at line center will cause problems (e.g. it will look like the images repeat themselves halfway through the channels). The systematic velocity (vsys) is applied after the full spectrum has been generated. This means that chanmin should be the minimum velocity, assuming the line is centered at zero velocity. It should not be the minimum velocity relative to the systemic velocity. The best way to specify chanmin is simply to use -(nchans/2)*chanstep. 
+
+
+Other code
+      There are a couple of other pieces of code that come support these two main pieces
+
+      co.dat : File containing data on CO transitions
+      mol_dat.py: code for reading in relavent information from co.dat
+      sample_alma.csh: collection of miriad commands used when converting a model image to visibility fits files (for security purposes I can't email a file with a .csh extention. Just take the file with the same name, and copy it to a file with a .csh extention. Then run 'chmod +x sample_alma.csh' to give yourself permission to execute the code.)
+
+      
+
+Calculating the chi-squared:
+     The file single_model also includes code to calculate the chi-squared between the model and the data set. First you need a model visibility file, which you created above using total_model, but with the miriad keyword set to True. The acutal chi-squared calculation takes place within the compare_vis function. The list of useful parameters are:
+    
+     :param datfile: (default = 'data/HD163296.CO32.regridded.cen15')
+     The base name for the data file. The code reads in the visibilities from datfile+'.vis.fits'
+
+     :param modfile" (default='model/testpy_alma')
+     The base name for the model file. The code reads in the visibilities from modfile+'p.vis.fits'
+
+     :param new_weight:
+     An array containing the weights to be used in the chi-squared calculation. This should have the same dimensions as the real and imaginary part of the visibilities (ie Nbas x Nchan)
+
+     :param systematic:
+     The systematic weight to be applied. The value sent with this keyword is used to scale the absolute flux level of the model. It is defined such that a value <1 decreases the model and a value >1 increases the model. It is meant to mimic a true flux in the data which is larger of smaller by the fraction systematic (e.g. specifying systematic=1.2 is equivalent to saying that the true flux of the data is 20% brighter than what has been observed, with this scaling applied to the model instead of changing the data
+
+
+Calling compare_vis returns the raw chi-squared value comparing the model to the data using the specified weights. Before fully trusting this result it is important to check the weights so that they have been exported from CASA correctly (if not then they will all be identical), which has been known to be a problem.

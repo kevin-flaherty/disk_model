@@ -1,0 +1,213 @@
+Here is a quick guide to running the python disk modeling code (which is based heavily on Katherine Rosenfeld's original idl code for modeling HD 163296, Rosenfeld et al. 2013).
+[Nov 21, 2016]
+
+Disk Structure:
+     The code is currently split into three main programs: one calculates the disk structure, one performs the radiative transfer calculation, and one handles log-likelihood comparisons to data. The first set of code is contained in the file disk.py. This defines the 'Disk' class of objects. A particular instance of this class can be created, based on a set of input parameters. This object can then be fed to the radiative transfer code, which creates the model image.
+
+The simplest way to create a disk object within python is:
+    In [1]: from disk import *
+    In [2]: x = Disk()
+
+
+This creates an instance of the Disk class, called 'x', with all of the generic parameters. To specify the structure parameters, use the 'params' and 'obs' keywords. 
+     params = [qq            # - Radial power law index for temperature (T(r)~r^qq)
+     	      ,Mdisk         # - Disk gas mass, in solar masses
+	      ,pp            # - Radial power law index for surface density (Sigma~r^pp)
+	      ,Rin           # - Disk inner edge, in AU
+	      ,Rout          # - Disk outer edge, in AU
+	      ,Rc            # - Disk critical radius in AU
+	      ,theta         # - inclination, in degrees
+	      ,Mstar         # - Stellar mass, in solar masses
+	      ,Xco           # - CO gas fraction, relative to molecular hydrogem
+	      ,vturb         # - turbulent velocity, as a fraction of the CO broadening
+	      ,Zq            # - Zq parameter for vertical temperature profile, in AU
+	      ,Tmid          # - Midplane temperature at 150 AU
+	      ,Tatm          # - Atmosphere temperature at 150 AU
+	      ,[Sig1,Sig2]   # - Upper and lower column density boundaries for the molecular zone, in units of 1.59e21 particles/cm^2
+	      ,[Rain,Raout]  # - Inner and outer boundaries for the distribution of the molecule within the disk 
+	      ,-1]           # - handedness of rotation
+
+      obs =   [nr      # - number of radial bins in radiative transfer grid
+      	      ,nphi    # - number of phi bins in radiative transfer grid
+	      ,nz      # - number of z grids in radiative transfer grid
+	      ,zmax]   # - Maximum height of disk grid, in AU
+
+
+An example of creating a disk with specific set of parameters:
+    In [1]: from disk import *
+    In [2]: x = Disk(params=[-0.529,0.119,1.,10.,1000.,135.6,51.5,2.3,1e-4,0.081,26.49,19.,50.03])
+
+    Other features/options within Disk:
+    There are additional options and functions available within the Disk class that may be useful for more advanced modeling. 
+
+    Additional parameters than can be specified during creation of a Disk object:
+
+    :param rtg (default = True):
+    Setting this keyword to True causes the code to map the density structure from the original grid onto the radiative transfer grid (which is necessary to do the radiative transfer with the next piece of code). The best option is simply to leave this as True. Turning this off is useful if you first want to create a disk object, and then specify radiative transfer grids (with different obs values) for e.g. different emission lines. If rtg is set to False then you can use x.set_obs(obs) to set the observational parameters and x.set_rt_grid() to create the radiative transfer grid
+
+    :param vcs (default = True):
+    By default the turbulence is parameterized as a fraction of the local thermal broadening of CO (which is ~3.438x smaller than the local sound speed). Set this parameter to False to instead specify the turbulent velocity as a fixed speed (e.g. vturb=0.1km/sec).
+
+    :param exp_temp (default = False):
+    Set this parameter to True to use an exponential profile for the vertical temperature profile instead of the Dartois Type II structure. Tmid still specifies the temperature at the midplane, while Tatm still specifies the temperature at height Zq.
+
+    :param line (default='co'):
+    Specify the molecule being used. This sets the molecule mass used in the velocity broadening term. Currently only know 'co' and 'dco+'.
+
+    :param ring (default=none):
+    Include a change in the power law slope of the temperature structure within the inner disk. Specify a list of [Rring, Wring, qring] where Rring is the central location of the ring in au, Wring is the width of the ring in au and qring is the radial power law temperature slope within the ring
+
+
+Functions:
+     - plot_structure(sound_speed=False,beta=None,dust=False): Generate of plot of density and temperature for the disk. Colored contours are density while black contours are temperature. Density is number density of H_2, but is only shown in the region with the molecule (ie between the surface density boundaries, and excluded from any region of freeze-out). The dashed lines mark Σ=0.1 and 0.01 g cm−2
+
+Setting sound_speed to True causes the map the show contours of constant sound speed instead of temperature
+
+Setting beta to a value plots contours of constant magnetic field strength
+
+Setting dust to True plots density contours of the dust (assuming dust has been included)
+
+
+     - calcH(verbose=True,return_pow=False): Calculate the pressure scale height as a function of radius. Outputs the parameters of a power law fit to H(r).H is calculated as 2^(−0.5) times the height where the density drops by 1/e, making H consistent with a density that falls off as exp(-z^2/2H^2)
+
+Set verbose to False to no longer output the parameters from the power law fit.
+
+Set return_pow to True to return the power law parameters. Otherwise the code returns H at each value of Disk.rf.
+
+
+     - add_dust_ring(Rin,Rout,dtg,ppD,initialize=False): Add a ring of dust with specified inner radius (Rin, in au), outer radius (Rout, in au), dust-to-gas ratio enhancement (dtg) and slope to a radial power law for the dust-to-gas ratio (ppD). The dust-to-gas ratio is taken as additive relative to any previous rings of dust. If this is the first dust ring that has been added, then specify initialize=True to inizialize the create the intrinsic dust-to-gas ratio parameter.
+
+     - set_line(line='co',vcs=True): Specifiy the molecule that is being used so that the proper mass is used in the velocity broadening calculation. This is currently split between 'co' and everything else (where everything else is assumed to be DCO+). The vcs keyword specifies where the turbulent broadening is treated as proportional to the local sound speed (vcs=True) or if it is a fixed velocity, in units of km/sec (vcs=False)
+
+     - set_rt_grid(vcs=True): Construct the radiative transfer grid.
+
+[Most of the rest of these functions don't need to be called by the user, but are listed for completeness]
+
+     - set_params(params): Set the object variables associated with the elements in the params list
+
+     - set_obs(obs): Set the observational object variables associated with the elements in the obs list
+
+     - set_structure(exp_temp=False): Generate the temperature and density structure of the disk.
+
+     - calc_hydrostatic(tempg,siggas,grid): Perform the vertical hydrostatic equilibrium calculation using the know temperature and surface density structure.
+
+     - density: Returns the mass density.
+
+     - temperature: Returns the temperature structure.
+
+     - grid: Returns the grid parameters.
+
+     - get_params: Returns the params list.
+
+     - get_obs: Returns the obs list.
+
+
+Radiative transfer:
+     Once the disk has been created, the radiative transfer code can be called. There are a series of functions defined within the file raytrace.py that handle the radiative transfer (plus some ancillary things). To load these functions into your python session, use the command run raytrace.py
+
+     The main function is called 'total_model'. This takes in a Disk object, along with a number of other parameters, and outputs a model fits image. The simplest call would be:
+
+     In [1]: from disk import *
+     In [2]: run raytrace.py
+     In [3]: x=Disk()
+     In [4]: total_model(x)
+
+You should now find a file called 'testpy_almap.fits' which is the model fits image. (In this simple example the miriad keyword is set to False so that it does not try to create a visibility fits file. For that to work you need an ALMA dataset to compare to, which by default you might not). 
+
+There are quite a few parameters within total_model that can be used to specify the e.g. resolution of the model image, resolution of the spectrum. For completeness, here is a full list:
+
+    :param disk:
+    A Disk object. This contains the structure of the disk over which the radiative transfer calculation will be done.
+
+    :param imres: (default = 0.05)
+    Model image resolution in arcsec. Should be the pixel size in the data image.
+
+    :param distance: (default = 122)
+    Distance in parsec to the target
+
+    :param chanmin: (default = -2.24)
+    Minimum channel velocity in km/sec. This value is relative to the line center (ie the minimum velocity assuming the line were centered at a velocity of 0).
+    
+    :param nchans: (default = 15)
+    Number of channels to model
+
+    :param chanstep: (default = 0.32)
+    Resolution of each channel, in km/sec
+
+    :param flipme: (default = True)
+    To save time, the code can calculate the radiative transfer for half of the line, and then mirror these results to fill in the rest of the line. Set flipme=1 to perform this mirroring, or use flipme=0 to compute the entire line profile
+
+    :param Jnum: (default = 2)
+    The lower J quantum of the transition of interest. Ex: For the CO J=3-2 transition, set Jnum=2
+
+    :param freq0: (default = 345.79599)
+    The rest frequency of the transition, in GHz.
+
+    :param xnpix: (default = 512)
+    Number of pixels in model image. xnpix*imres will equal the desired width of the image.
+    
+    :param vsys: (default = 5.79)
+    Systemic velocity of the star, in km/sec
+
+    :param PA: (default = 312.8)
+    position angle of the disk
+
+    :param offs: (default = [0.150,0.05])
+    Disk offset from image center, in arcseconds
+
+    :param modfile: (default = 'model/testpy_alma')
+    The base name for the model files. Resulting model image will be contained in modfile+'.fits'
+
+    :param abund (default=1.):
+    Abundnace relative to the abundnace set in the Disk object. This is useful for e.g. modeling C18O using a Disk object that was generated with a CO abundance
+
+    :param obsv (default=None):
+    A list of velocities for the channels in the data. If set, the model is interpolated from the grid defined by nchans, chanstep and chanmin onto this grid. Necessary if the spectral channels of the observations are not centered on the stellar velocity.
+
+    :param wind (default=False):
+    Include a rudimentary wind. This wind is simply a vertical motion whose speed is proportional to the local sound speed. Currently that speed is set to 0.
+
+    :param isgas (default=True):
+    Set to True if line emission is being computed.
+    
+    :param includeDust (default=False): Set to True to include dust emission. This can be done with or without line emission
+
+
+
+    - A note about chanmin/chanstep/nchans and vsys: The radiative transfer portion of the code works best if the central channel corresponds to the center of the line. Using flipme without setting the central channel at line center will cause problems (e.g. it will look like the images repeat themselves halfway through the channels). The systematic velocity (vsys) is applied after the full spectrum has been generated. This means that chanmin should be the minimum velocity, assuming the line is centered at zero velocity. It should not be the minimum velocity relative to the systemic velocity. The best way to specify chanmin is simply to use -(nchans/2)*chanstep. 
+
+
+
+Likelihood Caluclation:
+
+     Having made it this far there is a pretty good chance that you are interested in comparing your model image to some data. There is code that provides a frameowrk for this, although by necessicity there is a great deal of customization based on your exact data. Below is outline the basic functionality, and some of the areas where the code needs to be customized are pointed out.
+
+     The basic functionality is contained in the file single_model.py. The three main functions are make_model_vis, compare_vis and lnlike.
+
+     - make_model_vis: Generate model visisibilities, based on the baselines in a data file. CAUTION: This function relies on the script sample_alma.csh, which performs the calculations using the MIRIAD codebase. If you have not installed MIRIAD then this script will fail.
+
+     :param datfile: The base name of the data files. The code assumes that there is a visibility dataset named datfile+'.vis' and an image file named datfile+'.cm', both in MIRIAD format.
+
+     :param modfile: The base name of the model file. This is the same as the input to total_model, which would have generated a file named modfile+'.fits'. The model visibilities are named modfile='.model.vis.fits'
+
+     :param isgas (default=True): Is this a gas emission model? If so then set this flag to True (the exact script that is called differs depending on whether or not the model has multiple channels or is a single channel)
+
+     :param freq0 (default=345.79599): Rest frequency, in units of GHz. This number is put in the header of the model file.
+
+     
+
+     - compare_vis: Calculate the chi=squared by comparing the model and data visibilities.
+     
+     :param datfile: The base name of the data file. The code assumes that there is a visibility fits file named datfile+'.vis.fits'
+
+     :param modfile: The base name of the model file. The code assumes that there is a visibility fits file named modfile+'.model.vis.fits'
+
+     :param new_weight (default=None): An array containing new weights to be used in the chi-square calculation. This should have the same dimensions as the real and imaginary part of the visibilities (ie. N_base x N_chan for line data)
+
+     :param systematic (default=False): The systematic correction to be applied. The value sent with this keyword is used to scale down the absolute flux level of the model (the model visibilities are divided by this value). It is meant to mimic a true flux for the data which is larger or smaller by the supplied value (e.g. specifying systematic=1.2 is equivalent to saying that the true flux is 20% higher than what has been observed. The model visibilities are divided by 1.2 to mimic this effect). The scaling is applied to the model to ensure that the data are not adjusted in any way.
+
+     :param isgas (default=True):  If you are dealing with data with multiple channels, set this parameter to True to ensure the data is read in correctly. 
+
+     :param plot_resid (default=False): Plot the distribution of residuals. If the errors are truly Gaussian, then this distribution should be Gaussian in shape. If the errors are properly scaled, then this Gaussian will have a sigma of 1. If the data perfectly matches the data then the center of this Gaussian is identically zero. This is useful for checking that the uncertainties are Gaussian (making the chi-squared a good measure of log-liklihood) and that the errors are properly scaled (to ensure a proper comparison between different models).
+
+     - lnlike: Calculate the log-likelihood based on a set of input parameters. This function is used when e.g. feeding into the Markov-Chain Monte-Carlo code emcee. It essentially automates the model calculation, where the main input is a list of parameters that you with to vary from one model to the next (e.g. turbulence velocity, midplane temperature, etc.). This function will need to be heavlity modified to match your particular input data set. Once this is done, it will save a great deal of time in future model generation. 

@@ -1,0 +1,17 @@
+#log# Automatic Logger file. *** THIS MUST BE THE FIRST LINE ***
+#log# DO NOT CHANGE THIS LINE OR THE TWO BELOW -* coding: UTF-8 *-
+#log# opts = Struct({'__allownew': True,
+ 'autocall': 2,
+ 'banner': 0,
+ 'colors': 'LightBG',
+ 'ipythondir': '/home/kflaherty/.casa/ipython',
+ 'logfile': 'ipython-20170113-200220.log',
+ 'messages': 0,
+ 'prompt_in1': 'CASA <\\#>: '})
+#log# args = []
+#log# It is safe to make manual edits below here.
+#log#-----------------------------------------------------------------------
+execfile("/localspace/soft/casa-release-4.5.0-el6/lib/python2.7/assignmentFilter.py")
+_ip.magic("cd vis_sample-master/")
+from vis_sample import vis_sample
+exit()
