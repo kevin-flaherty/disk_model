@@ -178,7 +178,7 @@ There are quite a few parameters within total_model that can be used to specify 
 
 
 
-Likelihood Caluclation:
+Likelihood Calculation:
 
      Having made it this far there is a pretty good chance that you are interested in comparing your model image to some data. There is code that provides a frameowrk for this, although by necessicity there is a great deal of customization based on your exact data. Below is outline the basic functionality, and some of the areas where the code needs to be customized are pointed out.
 
@@ -211,3 +211,23 @@ Likelihood Caluclation:
      :param plot_resid (default=False): Plot the distribution of residuals. If the errors are truly Gaussian, then this distribution should be Gaussian in shape. If the errors are properly scaled, then this Gaussian will have a sigma of 1. If the data perfectly matches the data then the center of this Gaussian is identically zero. This is useful for checking that the uncertainties are Gaussian (making the chi-squared a good measure of log-liklihood) and that the errors are properly scaled (to ensure a proper comparison between different models).
 
      - lnlike: Calculate the log-likelihood based on a set of input parameters. This function is used when e.g. feeding into the Markov-Chain Monte-Carlo code emcee. It essentially automates the model calculation, where the main input is a list of parameters that you with to vary from one model to the next (e.g. turbulence velocity, midplane temperature, etc.). This function will need to be heavlity modified to match your particular input data set. Once this is done, it will save a great deal of time in future model generation. 
+
+
+
+Power Law and Eccentric disk:
+
+Different versions of the disk.py code have been developed to handle simple power law disks (disk_pow.py) and eccentric motion (disk_ecc.py). Swapping these in for the original code is fairly straightforward. If all you need is a model image, then simply use these other pieces of code to generate your underlying disk structure, e.g.:
+
+     In [1]: import disk_pow
+     In [2]: run raytrace.py
+     In [3]: y=disk_pow.Disk()
+     In [4]: total_model(y)
+
+or:
+     In [1]: import disk_ecc
+     In [2]: run raytrace.py
+     In [3]: z=disk_pow.Disk()
+     In [4]: total_model(z)
+
+The list of parameters accepted/expected for each code will differ, and can be found in the files themselves.
+

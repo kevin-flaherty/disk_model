@@ -3,9 +3,11 @@ from scipy import ndimage
 from scipy import sign
 from astropy.io import fits
 import os
-from disk import *
+#from disk import *
+import numpy as np
 from astropy import constants as const
 from scipy.integrate import cumtrapz,trapz
+import math
    #Define useful constants
 AU = const.au.cgs.value      # - astronomical unit (cm)
 c = const.c.cgs.value      # - speed of light (cm/s)
