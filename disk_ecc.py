@@ -59,7 +59,7 @@ class Disk:
         self.set_structure()  # use obs and params to create disk structure
         if rtg:
             self.set_rt_grid()
-            self.set_line(line=line)
+            self.set_line(line=line,True)
         tf = time.clock()
         print "disk init took {t} seconds".format(t=(tf-tb))
 
@@ -561,16 +561,25 @@ class Disk:
         #self.zpht = zpht
         #self.phi = tphi
 
-    def set_line(self,line='co'):
-        if line.lower()=='dco+' or line.lower()=='dco':
+    def set_line(self,line='co',vcs=True):
+        if line.lower()[:2]=='co':
+            m_mol = 12.011+15.999
+        elif line.lower()[:4]=='c18o':
+            m_mol = 12.011+17.999
+        elif line.lower()[:4]=='13co':
+            m_mol = 13.003+15.999
+        else:
+            #assume it is DCO+
+            m_mol = 2.014+12.011+15.999
+        if vcs:
             #temperature and turbulence broadening
             #tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mHCO)*tT+self.vturb**2)
-            tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*Disk.mHCO)*self.T)) #vturb proportional to cs
+            tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*m_mol)*self.T)) #vturb proportional to cs
 
         else: #assume line.lower()=='co'
             #temperature and turbulence broadening
-            #tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT+self.vturb**2)
-            tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*Disk.mCO)*self.T)) #vturb proportional to cs
+            tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*m_mol)*tT+self.vturb**2)
+            #tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*Disk.mCO)*self.T)) #vturb proportional to cs
 
         self.dBV=tdBV
 

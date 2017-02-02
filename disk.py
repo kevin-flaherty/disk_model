@@ -332,9 +332,14 @@ class Disk:
         #self.zpht = zpht
 
     def set_line(self,line='co',vcs=True):
-        if line.lower()=='co' or line.lower()=='co21' or line.lower()=='c18o' or line.lower=='c18o21':
-            m_mol = Disk.mCO
+        if line.lower()[:2]=='co':
+            m_mol = 12.011+15.999
+        elif line.lower()[:4]=='c18o':
+            m_mol = 12.011+17.999
+        elif line.lower()[:4]=='13co':
+            m_mol = 13.003+15.999
         else:
+            #assume it is DCO+
             m_mol = Disk.mDCO
         if vcs:
             #temperature and turbulence broadening
