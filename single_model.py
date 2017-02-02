@@ -49,7 +49,9 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
             if obj[0].header['naxis3'] == 2:
                 real_obj = (vis_obj[:,:,0,0]+vis_obj[:,:,1,0])/2. #format=Nbase*Nchan*3*2
                 imag_obj = (vis_obj[:,:,0,1]+vis_obj[:,:,1,1])/2.
-                weight_alma = (vis_obj[:,:,0,2]+vis_obj[:,:,1,2])/2.
+                weight_real = vis_obj[:,:,0,2]
+                weight_imag = vis_obj[:,:,1,2]
+                #weight_alma = (vis_obj[:,:,0,2]+vis_obj[:,:,1,2])/2.
 
         # - Read in model visibilities
                 model = fits.open(modfile+'.model.vis.fits')
@@ -71,7 +73,9 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
             if obj[0].header['naxis3'] == 2:
                 real_obj = (vis_obj[:,0,0]+vis_obj[:,1,0])/2.
                 imag_obj = (vis_obj[:,0,1]+vis_obj[:,1,1])/2.
-                weight_alma = (vis_obj[:,0,2]+vis_obj[:,1,2])/2.
+                weight_real = vis_obj[:,0,2]
+                weight_imag = vis_obj[:,1,2]
+                #weight_alma = (vis_obj[:,0,2]+vis_obj[:,1,2])/2.
 
                 model = fits.open(modfile+'.model.vis.fits')
                 vis_mod = model[0].data['data'].squeeze()
@@ -91,11 +95,15 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
         imag_model = imag_model/systematic
         
     if new_weight != None:
-        weight_alma = new_weight
+        #weight_alma = new_weight
+        weight_real = new_weight
+        weight_imag = new_weight
 
-    wremove = (real_obj == 0.) & (imag_obj == 0.) #| (weight_alma<.05)
-    weight_alma[wremove] = 0.
-    print 'Removed data %i' % ((weight_alma ==0).sum())
+    #wremove = (real_obj == 0.) & (imag_obj == 0.) #| (weight_alma<.05)
+    #weight_alma[wremove] = 0.
+    weight_real[real_obj==0] = 0.
+    weight_imag[imag_obj==0] = 0.
+    print 'Removed data %i' % ((weight_real ==0).sum()+(weight_imag==0).sum())
 #    print 'Retained data %i' % ((weight_alma !=0).sum())
 
     if plot_resid:
@@ -103,8 +111,8 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
         #If errors are Gaussian, then residuals should have gaussian shape
         #If error size is correct, residuals will have std=1
         uv = np.sqrt(u_obj**2+v_obj**2)
-        use = (weight_alma > .05)
-        diff = np.concatenate((((real_model[use]-real_obj[use])*np.sqrt(weight_alma[use])),((imag_model[use]-imag_obj[use])*np.sqrt(weight_alma[use]))))
+        use = (weight_real > .05) & (weight_imag>.05)
+        diff = np.concatenate((((real_model[use]-real_obj[use])*np.sqrt(weight_real[use])),((imag_model[use]-imag_obj[use])*np.sqrt(weight_imag[use]))))
         diff = diff.flatten()
         n,bins,patches = plt.hist(diff,10000,normed=1,histtype='step',color='k',label='Data',lw=3)
         popt,pcov = curve_fit(gaussian,bins[1:],n)
@@ -126,7 +134,7 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
     
     # - Calculate Chi-squared
     uv = np.sqrt(u_obj**2+v_obj**2)
-    chi = ((real_model-real_obj)**2*weight_alma).sum() + ((imag_model-imag_obj)**2*weight_alma).sum()
+    chi = ((real_model-real_obj)**2*weight_real).sum() + ((imag_model-imag_obj)**2*weight_imag).sum()
     return chi
 
 def gaussian(x,amp,width,center):
