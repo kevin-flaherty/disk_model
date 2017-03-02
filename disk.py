@@ -172,42 +172,20 @@ class Disk:
             print 'Beware: removed NaNs from temperature (#%s)' % ii.sum()
 
         # find photodissociation boundary layer from top
-        zpht_up = np.zeros(nrc)
-        zpht_low = np.zeros(nrc)
         sig_col = np.zeros((nrc,nzc)) #Cumulative mass surface density along vertical lines starting at z=170AU
         for ir in range(nrc):
             psl = (Disk.Hnuctog/Disk.m0*self.rho0[ir,:])[::-1]
             zsl = self.zmax - (zcf[ir,:])[::-1]
             foo = (zsl-np.roll(zsl,1))*(psl+np.roll(psl,1))/2.
             foo[0] = 0
-            nsl = foo.cumsum() 
+            nsl = foo.cumsum()
+            #cumulative mass column density along vertical columns
             sig_col[ir,:] = nsl[::-1]*Disk.m0/Disk.Hnuctog
-            #Height of upper column density boundary
-            pht = (np.abs(nsl) >= self.sigbound[0])
-            if pht.sum() == 0:
-                zpht_up[ir] = np.min(self.zmax-zsl)
-            else:
-                zpht_up[ir] = np.max(self.zmax-zsl[pht])
-            #Height of lower column density boundary
-            pht = (np.abs(nsl) >= self.sigbound[1])
-            if pht.sum() == 0:
-                zpht_low[ir] = np.min(self.zmax-zsl)
-            else:
-                zpht_low[ir] = np.max(self.zmax-zsl[pht]) 
-            #calculate the height of sig_m here *******
-        szpht_up = zpht_up
-        szpht_low = zpht_low
         self.sig_col = sig_col #save it for later
-
-        # find height where CO freezes out
-        zice = np.zeros(nrc)
+        
+        # Set default freeze-out temp
         self.Tco = Disk.Tco
-        for ir in range(nrc):
-            foo = (tempg[ir,:] < Disk.Tco)
-            if foo.sum() > 0:
-                zice[ir] = np.max(zcf[ir,foo])
-            else:
-                zice[ir] = zmin
+
 
         
         self.rf = rf
@@ -216,8 +194,6 @@ class Disk:
         self.nzc = nzc
         self.tempg = tempg
         self.Omg0 = Omg
-        self.zpht_up = zpht_up
-        self.zpht_low = zpht_low
         
         
         
@@ -249,15 +225,6 @@ class Disk:
         tr = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY**2)
         notdisk = (tr > self.Rout) | (tr < self.Rin)  # - individual grid elements not in disk
         xydisk =  tr[:,:,0] <= self.Rout+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
-
-        #For DCO+, consider abundance as distributed as gaussians about two rings#*****#
-        if np.size(self.Xco)>1:
-            #gaussian rings
-            Xmol = self.Xco[0]*np.exp(-(self.Rabund[0]-tr)**2/(2*self.Rabund[3]**2))+self.Xco[1]*np.exp(-(self.Rabund[1]-tr)**2/(2*self.Rabund[4]**2))+self.Xco[2]*np.exp(-(self.Rabund[2]-tr)**2/(2*self.Rabund[5]**2))
-            #flat rings
-            #Xmol = self.Xco[0]*(np.abs(tr-self.Rabund[0]) < self.Rabund[2])+self.Xco[1]*(np.abs(tr-self.Rabund[1]) < self.Rabund[3])
-        else:
-            Xmol = self.Xco
         
 
         # interpolate to calculate disk temperature and densities
@@ -267,38 +234,34 @@ class Disk:
         yind = np.interp(np.abs(tdiskZ).flatten(),self.zf,range(self.nzc)) #zf,nzc
         tT = ndimage.map_coordinates(self.tempg,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
         Omg = ndimage.map_coordinates(self.Omg0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #Omg
-        trhoG = Disk.H2tog*Xmol/Disk.m0*ndimage.map_coordinates(self.rho0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #**********#
-        trhoH2 = trhoG/Xmol#Disk.H2tog/Disk.m0*ndimage.map_coordinates(self.rho0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)
         tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=2).reshape(self.nphi,self.nr,self.nz)
-        zpht_up = np.interp(tr.flatten(),self.rf,self.zpht_up).reshape(self.nphi,self.nr,self.nz) #tr,rf,zpht
-        zpht_low = np.interp(tr.flatten(),self.rf,self.zpht_low).reshape(self.nphi,self.nr,self.nz)
+
         tT[notdisk]=0
-        trhoG[notdisk]=0
-        trhoH2[notdisk]=0
+        self.r = tr
+        self.sig_col = tsig_col
 
-        # photo-dissociation
-        zap = (np.abs(tdiskZ) > zpht_up)
+        #Set molecular abundance
+        self.add_mol_ring(self.Rabund[0]/Disk.AU,self.Rabund[1]/Disk.AU,self.sigbound[0]/Disk.sc,self.sigbound[1]/Disk.sc,self.Xco,initialize=True)
+
+        if np.size(self.Xco)>1:
+            #gaussian rings
+            self.Xmol = self.Xco[0]*np.exp(-(self.Rabund[0]-tr)**2/(2*self.Rabund[3]**2))+self.Xco[1]*np.exp(-(self.Rabund[1]-tr)**2/(2*self.Rabund[4]**2))+self.Xco[2]*np.exp(-(self.Rabund[2]-tr)**2/(2*self.Rabund[5]**2))
+
+        #Freeze-out
+        zap = (tT<self.Tco)
         if zap.sum() > 0:
-            trhoG[zap] = 1e-18*trhoG[zap]
-        #from scipy.special import erfc
-        #trhoG = .5*erfc((tdiskZ-zpht_up)/(.1*zpht_up))*trhoG
-        # Lower (lower z) abundance boundary
-        zap = (np.abs(tdiskZ) < zpht_low)
-        if zap.sum() > 0:
-            trhoG[zap] = 1e-18*trhoG[zap]
+            self.Xmol[zap] = 1/5.*self.Xmol[zap]
 
-                
-        if np.size(self.Xco)<2:#****#
-        #Inner and outer abundance boundaries
-            zap = (tr <= self.Rabund[0]) | (tr >= self.Rabund[1])
-            if zap.sum() > 0:
-                trhoG[zap] = 1e-18*trhoG[zap]
+        trhoH2 = Disk.H2tog/Disk.m0*ndimage.map_coordinates(self.rho0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)
+        trhoG = trhoH2*self.Xmol
+        trhoG[notdisk] = 0
+        trhoH2[notdisk] = 0
+        self.rhoH2 = trhoH2
 
-                
-        # freeze out
-        zap = (tT <= self.Tco)
-        if zap.sum() >0:
-            trhoG[zap] = 1/5.*trhoG[zap] #**************#
+        self.add_dust_ring(self.Rin,self.Rout,0.,0.,initialize=True) #initialize dust density to 0
+
+        ##from scipy.special import erfc
+        ##trhoG = .5*erfc((tdiskZ-zpht_up)/(.1*zpht_up))*trhoG
 
         #temperature and turbulence broadening
         #tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mCO)*tT+self.vturb**2)
@@ -317,7 +280,7 @@ class Disk:
         self.Y = Y
         self.Z = tdiskZ
         self.S = S
-        self.r = tr
+        #self.r = tr
         self.T = tT
         self.dBV = tdBV
         self.rhoG = trhoG
@@ -325,11 +288,8 @@ class Disk:
         self.i_notdisk = notdisk
         self.i_xydisk = xydisk
         self.cs = np.sqrt(2*self.kB/(self.Da*2)*self.T)
-        self.sig_col=tsig_col
-        self.Xmol=Xmol
-        self.rhoH2 = trhoH2
-        #self.tempg = tempg
-        #self.zpht = zpht
+        #self.sig_col=tsig_col
+        #self.rhoH2 = trhoH2
 
     def set_line(self,line='co',vcs=True):
         if line.lower()[:2]=='co':
@@ -364,6 +324,22 @@ class Disk:
         Rmid = (Rin+Rout)/2.*Disk.AU
         self.dtg[w] += dtg*(self.r[w]/Rmid)**(-ppD)
         self.rhoD = self.rhoH2*self.dtg*2*Disk.mh
+
+    def add_mol_ring(self,Rin,Rout,Sig0,Sig1,abund,initialize=False):
+        '''Add a ring of fixed abundance, between Rin and Rout (in the radial direction) and Sig0 and Sig1 (in the vertical direction).
+        disk.add_mol_ring(10*disk.AU,100*disk.AU,.79*disk.sc,1000*disk.sc,1e-4)
+        '''
+        if initialize:
+            self.Xmol = np.zeros(np.shape(self.r))+1e-18
+        add_mol = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
+        if add_mol.sum()>0:
+            self.Xmol[add_mol]+=abund
+        zap = (self.Xmol<0)
+        if zap.sum()>0:
+            self.Xmol[zap]=1e-18
+        if not initialize:
+            self.rhoG = self.rhoH2*self.Xmol
+        
        
     def calc_hydrostatic(self,tempg,siggas,grid):
         nrc = grid['nrc']
