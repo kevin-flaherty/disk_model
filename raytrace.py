@@ -461,8 +461,10 @@ def xy_interpol(cube,dec,ra,xnpix,imres,flipme=0):
     else:
         dchans = nchans
 
+    w = (pR>r.max()).reshape(xnpix,xnpix)
     for i in range(int(dchans)):
         sqcube[:,:,i] = ndimage.map_coordinates(cube[:,:,i],[[iPhi],[iR]],order=1).reshape(xnpix,xnpix)
+        sqcube[:,:,i][w] = 0.
 
 
     if flipme:
@@ -482,8 +484,10 @@ def xy_interpol(cube,dec,ra,xnpix,imres,flipme=0):
         iR = np.interp(pR,r,range(nr))
         iPhi = np.interp(pPhi,phi,range(nphi))
     
+        w = (pR>r.max()).reshape(xnpix,xnpix)
         for i in range(int(dchans),nchans):
             sqcube[:,:,i] = ndimage.map_coordinates(cube[:,:,i],[[iPhi],[iR]],order=1).reshape(xnpix,xnpix)
+            sqcube[:,:,i][w] = 0.
 
     return sqcube
 
