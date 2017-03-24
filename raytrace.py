@@ -507,7 +507,7 @@ def findtau1(disk,tau,Inu,cube3,flag=0.):
             if np.float(flag)==0:
                 ztau1[iphi,ir]=np.interp(1,tau[iphi,ir,:],z[iphi,ir,:])#tau
             if (flag>0.) & (flag<0.2):
-                ztau1[iphi,ir]=np.interp(1,tau[iphi,ir,:],disk.T[iphi,ir,:])*disk.AU#temp at tau=1 surface (multiplying by AU is because code after this assumes that it is actually height of tau=1 surface)
+                ztau1[iphi,ir]=np.interp(1,tau[iphi,ir,:],disk.T[iphi,ir,:],right=0.,left=0.)*disk.AU#temp at tau=1 surface (multiplying by AU is because code after this assumes that it is actually height of tau=1 surface)
             #ztau1[iphi,ir] = np.interp(10,tau[iphi,ir,:],cube3[iphi,ir,:])*disk.AU
             #ztau1[iphi,ir] = np.sum(disk.T[iphi,ir,:]*tau[iphi,ir,:])/np.sum(tau[iphi,ir,:])*disk.AU
             if flag>0.1:
