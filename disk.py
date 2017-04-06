@@ -422,7 +422,7 @@ class Disk:
         obs.append(self.zmax/Disk.AU)
         return obs
 
-    def plot_structure(self,sound_speed=False,beta=None,dust=False):
+    def plot_structure(self,sound_speed=False,beta=None,dust=False,rmax=500,zmax=150):
         ''' Plot temperature and density structure of the disk'''
         plt.figure()
         plt.rc('axes',lw=2)
@@ -456,10 +456,10 @@ class Disk:
             plt.clabel(cs3,fmt='%1i',manual=manual_locations)
         plt.colorbar(cs2,label='log n')
         #plt.colorbar(cs2,label='log $\Sigma_{FUV}$')
-        plt.xlim(0,500)
+        plt.xlim(0,rmax)
         plt.xlabel('R (AU)',fontsize=20)
         plt.ylabel('Z (AU)',fontsize=20)
-        plt.ylim(0,150)
+        plt.ylim(0,zmax)
         plt.show()
 
     def calcH(self,verbose=True,return_pow=False):
