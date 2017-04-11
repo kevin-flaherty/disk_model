@@ -201,10 +201,14 @@ class Disk:
     def set_rt_grid(self,vcs=True):
         ### Start of Radiative Transfer portion of the code...
         # Define and initialize cylindrical grid
-        Smin = 10*Disk.AU                 # offset from zero to log scale
-        Smax = 2.*self.zmax/self.costhet       # los distance through disk
+        Smin = 1*Disk.AU                 # offset from zero to log scale
+        if self.thet > np.arctan(self.Rout/self.zmax):
+            Smax = 2*self.Rout/self.sinthet
+        else:
+            Smax = 2.*self.zmax/self.costhet       # los distance through disk
         Smid = Smax/2.                    # halfway along los
         ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
+
         R = np.linspace(0,self.Rout,self.nr) 
         phi = np.arange(self.nphi)*2*np.pi/(self.nphi-1)
         foo = np.floor(self.nz/2)
@@ -221,6 +225,8 @@ class Disk:
 
         # transform grid
         tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S
+        if self.thet > np.arctan(self.Rout/self.zmax):
+            tdiskZ -=(Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
         tdiskY = ytop - self.sinthet*S + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
         tr = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY**2)
         notdisk = (tr > self.Rout) | (tr < self.Rin)  # - individual grid elements not in disk
@@ -236,7 +242,7 @@ class Disk:
         Omg = ndimage.map_coordinates(self.Omg0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #Omg
         tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=2).reshape(self.nphi,self.nr,self.nz)
 
-        tT[notdisk]=0
+        tT[notdisk]=2.73
         self.r = tr
         self.sig_col = tsig_col
 
@@ -254,7 +260,7 @@ class Disk:
 
         trhoH2 = Disk.H2tog/Disk.m0*ndimage.map_coordinates(self.rho0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)
         trhoG = trhoH2*self.Xmol
-        trhoG[notdisk] = 0
+        #trhoG[notdisk] = 0
         trhoH2[notdisk] = 0
         self.rhoH2 = trhoH2
 

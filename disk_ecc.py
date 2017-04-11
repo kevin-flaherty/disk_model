@@ -434,8 +434,11 @@ class Disk:
         #tst=time.clock()
         ### Start of Radiative Transfer portion of the code...
         # Define and initialize cylindrical grid
-        Smin = 10*Disk.AU                 # offset from zero to log scale
-        Smax = 2.*self.zmax/self.costhet       # los distance through disk
+        Smin = 1*Disk.AU                 # offset from zero to log scale
+        if self.thet > np.arctan(self.Rout/self.zmax):
+            Smax = 2*self.Rout/self.sinthet
+        else:
+            Smax = 2.*self.zmax/self.costhet       # los distance through disk
         Smid = Smax/2.                    # halfway along los
         ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
         #sky coordinates
@@ -457,6 +460,8 @@ class Disk:
 
         # transform grid to disk coordinates
         tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S
+        if self.thet > np.arctan(self.Rout/self.zmax):
+            tdiskZ -=(Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
         tdiskY = ytop - self.sinthet*S + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
         tr = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY**2)
         tphi = np.arctan2(tdiskY,X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz))%(2*np.pi)
