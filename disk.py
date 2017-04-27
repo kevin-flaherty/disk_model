@@ -443,8 +443,6 @@ class Disk:
         plt.figure()
         plt.rc('axes',lw=2)
         cs2 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10((self.rhoG/self.Xmol)[0,:,:]),np.arange(0,11,0.1))  
-        for i in range(self.nphi):
-            print np.max(self.Z[i,:,:]/Disk.AU)
         #cs2 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10((self.rhoG)[0,:,:]),np.arange(-4,7,0.1))
         cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.sig_col[0,:,:]),(-2,-1),linestyles=':',linewidths=3,colors='k')
         ax = plt.gca()
@@ -506,83 +504,5 @@ class Disk:
         else:
             return H
 
-    def doppler(self):
-        #self.r is the radial coordinate for the radiative transfer grid, which is what is needed for the turbulence calculation
-        '''This is the functional form taken from Jake's model for the turbulence.'''
 
-        rad=[10*self.AU,30*self.AU,100*self.AU,459.0*self.AU]
-        a0 = [0.0232633,0.0232633,0.0243764]
-        a1 = [2.62030,2.62030,2.68668]
-        a2 = [0.318205,0.318205,0.196525]
-        a3 = [14.2006,14.2006,12.5146]
-        a4 = [0.0414938,0.0414938,0.0563762]
-        f1 = np.zeros((self.nphi,self.nr,self.nz))
-        hr_pow=self.calcH(verbose=False,return_pow=True) #H100,power law index
-        hr = hr_pow[0]*Disk.AU*(self.r/(100*Disk.AU))**(hr_pow[1])
-
-        ii = (self.r <= rad[0])
-        a0i=a0[0]
-        a1i=a1[0]
-        a2i=a2[0]
-        a3i=a3[0]
-        a4i=a4[0]
-        f1[ii] = np.maximum(np.minimum(a0i*np.exp((self.Z[ii]/hr[ii])**2/a1i),a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i)),a4i)
-
-        ii = (self.r>rad[0]) & (self.r<=rad[1])
-        m = (a0[1]-a0[0])/(rad[1]-rad[0])
-        b = a0[0]-m*rad[0]
-        a0i = m*self.r[ii]+b
-        m = (a1[1]-a1[0])/(rad[1]-rad[0])
-        b = a1[0]-m*rad[0]
-        a1i = m*self.r[ii]+b
-        m = (a2[1]-a2[0])/(rad[1]-rad[0])
-        b = a2[0]-m*rad[0]
-        a2i = m*self.r[ii]+b
-        m = (a3[1]-a3[0])/(rad[1]-rad[0])
-        b = a3[0]-m*rad[0]
-        a3i = m*self.r[ii]+b
-        m = (a4[1]-a4[0])/(rad[1]-rad[0])
-        b = a4[0]-m*rad[0]
-        a4i = m*self.r[ii]+b
-        f1[ii] = np.maximum(np.minimum(a0i*np.exp((self.Z[ii]/hr[ii])**2/a1i),a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i)),a4i)
-
-        ii = (self.r>rad[1]) & (self.r<=rad[2])
-        m = (a0[2]-a0[1])/(rad[2]-rad[1])
-        b = a0[1]-m*rad[1]
-        a0i = m*self.r[ii]+b
-        m = (a1[2]-a1[1])/(rad[2]-rad[1])
-        b = a1[1]-m*rad[1]
-        a1i = m*self.r[ii]+b
-        m = (a2[2]-a2[1])/(rad[2]-rad[1])
-        b = a2[1]-m*rad[1]
-        a2i = m*self.r[ii]+b
-        m = (a3[2]-a3[2])/(rad[2]-rad[1])
-        b = a3[1]-m*rad[1]
-        a3i = m*self.r[ii]+b
-        m = (a4[2]-a4[1])/(rad[2]-rad[1])
-        b = a4[1]-m*rad[1]
-        a4i = m*self.r[ii]+b
-        f1[ii] = np.maximum(np.minimum(a0i*np.exp((self.Z[ii]/hr[ii])**2/a1i),a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i)),a4i)
-        
-        ii = (self.r>rad[2]) & (self.r<rad[3])
-        a0i = a0[2]
-        m = (0.01-a1[2])/(rad[3]-rad[2])
-        b = a1[2]-m*rad[2]
-        a1i = m*self.r[ii]+b
-        a2i=a2[2]
-        a3i=a3[2]
-        a4i=a4[2]
-        f1[ii] = np.maximum(np.minimum(a0i*np.exp((self.Z[ii]/hr[ii])**2/a1i),a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i)),a4i)
-
-        ii = self.r>rad[3]
-        a0i = a0[2]
-        a1i = 0.01
-        a2i = a2[2]
-        a3i = a3[2]
-        a4i = a4[2]
-        f1[ii] = np.maximum(a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i),a4i)
-
-        return f1
-        #cs=plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,f1[0,:,:],np.arange(0,1,.01))
-        #plt.colorbar(cs)
 
