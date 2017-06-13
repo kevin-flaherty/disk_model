@@ -52,14 +52,14 @@ class Disk:
     sigphot = 0.79*sc                  # - photo-dissociation column
     
     def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,
-    	         [.79,1000],[10.,1000],-1, 500, 500, 0.09*Lsun],obs=[180,131,300,170],exp_temp='False',
-    	         rtg=True,vcs=True,line='co',ring=None):
+    	         [.79,1000],[10.,1000],-1, 500, 500, 0.09*Lsun],obs=[180,131,300,170],rtg=True,
+                 vcs=True,line='co',ring=None):
 
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
         self.set_params(params) # set the structure parameters
 
-        self.set_structure(exp_temp=exp_temp)  # use obs and params to create disk structure
+        self.set_structure()  # use obs and params to create disk structure
         if rtg:
             self.set_rt_grid(vcs=vcs)
             self.set_line(line=line,vcs=vcs)
@@ -77,17 +77,15 @@ class Disk:
         self.Xco = params[8]                # - CO gas fraction
         self.vturb = params[9]*Disk.kms     # - turbulence velocity
         self.zq0 = params[10]               # - Zq, in AU, at 150 AU
-        self.tmid0 = params[11]             # - Tmid at 150 AU
-        self.tatm0 = params[12]             # - Tatm at 150 AU
-        self.sigbound = [params[13][0]*Disk.sc,params[13][1]*Disk.sc]          
+        self.sigbound = [params[11][0]*Disk.sc,params[11][1]*Disk.sc]          
               # - upper and lower column density boundaries
-        if len(params[14]) ==2:
+        if len(params[12]) ==2:
             # - inner and outer abundance boundaries 
-            self.Rabund = [params[14][0]*Disk.AU,params[14][1]*Disk.AU]
+            self.Rabund = [params[12][0]*Disk.AU,params[12][1]*Disk.AU]
         else:
             # - inner/outer ring, width of inner/outer ring
-            self.Rabund=[params[14][0]*Disk.AU,params[14][1]*Disk.AU,params[14][2]*Disk.AU,params[14][3]*Disk.AU,params[14][4]*Disk.AU,params[14][5]*Disk.AU]
-        self.handed = params[15]            # 
+            self.Rabund=[params[12][0]*Disk.AU,params[12][1]*Disk.AU,params[12][2]*Disk.AU,params[12][3]*Disk.AU,params[12][4]*Disk.AU,params[12][5]*Disk.AU]
+        self.handed = params[13]            # 
         self.costhet = np.cos(self.thet)  # - cos(i)
         self.sinthet = np.sin(self.thet)  # - sin(i)
         if self.ring is not None:
@@ -96,9 +94,9 @@ class Disk:
             self.sig_enhance = self.ring[2] #power law slope of inner temperature structure
 
         #set number of model grid elements in radial and vertical direction
-        self.r_gridsize = params[16]
-        self.z_gridsize = params[17]
-        self.Lstar      = params[18]
+        self.r_gridsize = params[14]
+        self.z_gridsize = params[15]
+        self.Lstar      = params[16]
         
     def set_obs(self,obs):
         'Set the observational parameters. These parameters are the number of r, phi, S grid points in the radiative transer grid, along with the maximum height of the grid.'
@@ -108,7 +106,7 @@ class Disk:
         self.zmax = obs[3]*Disk.AU
                 
 
-    def set_structure(self,exp_temp="False"):
+    def set_structure(self):
         '''Calculate the disk density and temperature structure given the specified parameters'''
         # Define the desired regular cylindrical (r,z) grid
         nrc  = self.r_gridsize  # - number of unique r points
@@ -119,13 +117,9 @@ class Disk:
         rf   = np.logspace(np.log10(rmin),np.log10(rmax),nrc)
         zf   = np.logspace(np.log10(zmin),np.log10(self.zmax),nzc)
 
-        idr = np.ones(nrc)
-        zcf = np.outer(idr,zf)
-        rcf = rf[:,np.newaxis]*np.ones(nzc)
-
-        # rcf[0][:] = radius at all z for first radial bin
-        # zcf[0][:] = z in first radial bin
-
+        idr  = np.ones(nrc)
+        zcf  = np.outer(idr,zf)
+        rcf  = rf[:,np.newaxis]*np.ones(nzc)
 
         # Interpolate dust temperature and density onto cylindrical grid
         tf = 0.5*np.pi-np.arctan(zcf/rcf)  # theta values
@@ -136,19 +130,7 @@ class Disk:
         self.grid=grid
 
         #define temperature structure
-        delta = 1.                # shape parameter
-        zq = self.zq0*Disk.AU*(rcf/(150*Disk.AU))**1.3 #1.3
-        tmid = self.tmid0*(rcf/(150*Disk.AU))**self.qq#[0] #******************#
-        tatm = self.tatm0*(rcf/(150*Disk.AU))**self.qq#[1] #******************#
-        tempg = tatm + (tmid-tatm)*np.cos((np.pi/(2*zq))*zcf)**(2.*delta)
-        ii = zcf > zq
-        tempg[ii] = tatm[ii]
-
-        if exp_temp:
-            #Type I temperature structure
-            tempg = tmid*np.exp(np.log(tatm/tmid)*zcf/zq)
-            ii = tempg > 500 #cap on temperatures
-            tempg[ii] = 500.
+        tempg = (self.Lstar * self.Lsun / (4 * np.pi * rcf**2 * self.sigmaB))**0.25
         
         # Calculate vertical density structure
         Sc_old = self.McoG*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
@@ -446,8 +428,6 @@ class Disk:
         params.append(self.Xco)
         params.append(self.vturb/Disk.kms)
         params.append(self.zq0)
-        params.append(self.tmid0)
-        params.append(self.tatm0)
         params.append(self.handed)
         params.append(self.r_gridsize)
         params.append(self.z_gridsize)
