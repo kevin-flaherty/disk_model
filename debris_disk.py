@@ -52,7 +52,7 @@ class Disk:
     sigphot = 0.79*sc                  # - photo-dissociation column
     
     def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,
-    	         [.79,1000],[10.,1000],-1, 500, 500, 0.09*Lsun],obs=[180,131,300,170],rtg=True,
+    	         [.79,1000],[10.,1000],-1, 500, 500, 0.09, 0.1],obs=[180,131,300,170],rtg=True,
                  vcs=True,line='co',ring=None):
 
         self.ring=ring
@@ -67,7 +67,7 @@ class Disk:
     def set_params(self,params):
         'Set the disk structure parameters'
         self.qq = params[0]                 # - temperature index
-        self.McoG = params[1]*Disk.Msun     # - gas mass
+        self.Mdust = params[1]*Disk.Msun    # - dust mass
         self.pp = params[2]                 # - surface density index
         self.Rin = params[3]*Disk.AU        # - inner edge in cm
         self.Rout = params[4]*Disk.AU       # - outer edge in cm
@@ -97,6 +97,7 @@ class Disk:
         self.r_gridsize = params[14]
         self.z_gridsize = params[15]
         self.Lstar      = params[16]
+        self.sh_param   = params[17]
         
     def set_obs(self,obs):
         'Set the observational parameters. These parameters are the number of r, phi, S grid points in the radiative transer grid, along with the maximum height of the grid.'
@@ -132,15 +133,18 @@ class Disk:
         #define temperature structure
         tempg = (self.Lstar * self.Lsun / (4 * np.pi * rcf**2 * self.sigmaB))**0.25
         
+        #calculate the scale height of the disk
+        self.H = self.get_scale_height(rcf)
+
         # Calculate vertical density structure
-        Sc_old = self.McoG*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
+        Sc_old = self.Mdust*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
                          #        siggas = Sc*(rf/self.Rc)**(-1*self.pp)*np.exp(-1*(rf/self.Rc)**(2-self.pp))
         #change the previous line to be a power law in radius, with index pp, extending from Rin to Rc. From Rc to Rout the surface density is 0 (will the zeros cause problems for the hydrostatic equilibrium calculation? if it does then I could simply set Rout=Rc)
         #what is normalization on Sig_gas, in terms of Mdisk?
         if self.pp ==2:
-            Sc = self.McoG/(2*np.pi*(np.log(self.Rc)-np.log(self.Rin)))
+            Sc = self.Mdust/(2*np.pi*(np.log(self.Rc)-np.log(self.Rin)))
         else:
-            Sc = self.McoG*(2.-self.pp)/(2*np.pi*(self.Rc**(2-self.pp)-self.Rin**(2-self.pp)))
+            Sc = self.Mdust*(2.-self.pp)/(2*np.pi*(self.Rc**(2-self.pp)-self.Rin**(2-self.pp)))
 
         siggas = Sc*rf**(-1*self.pp)
         siggas[rf<self.Rin] = 1e-60
@@ -418,7 +422,7 @@ class Disk:
     def get_params(self):
         params=[]
         params.append(self.qq)
-        params.append(self.McoG/Disk.Msun)
+        params.append(self.Mdust/Disk.Msun)
         params.append(self.pp)
         params.append(self.Rin/Disk.AU)
         params.append(self.Rout/Disk.AU)
@@ -432,6 +436,7 @@ class Disk:
         params.append(self.r_gridsize)
         params.append(self.z_gridsize)
         params.append(self.Lstar)
+        params.append(self.sh_param)
         return params
 
     def get_obs(self):
@@ -442,45 +447,10 @@ class Disk:
         obs.append(self.zmax/Disk.AU)
         return obs
 
-    def plot_structure(self,sound_speed=False,beta=None,dust=False,rmax=500,zmax=150):
-        ''' Plot temperature and density structure of the disk'''
-        plt.figure()
-        plt.rc('axes',lw=2)
-        cs2 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10((self.rhoG/self.Xmol)[0,:,:]),np.arange(0,11,0.1))  
-        #cs2 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10((self.rhoG)[0,:,:]),np.arange(-4,7,0.1))
-        cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.sig_col[0,:,:]),(-2,-1),linestyles=':',linewidths=3,colors='k')
-        ax = plt.gca()
-        for tick in ax.xaxis.get_major_ticks():
-            tick.label1.set_fontsize(14)
-            tick.label1.set_fontweight('bold')
-        for tick in ax.yaxis.get_major_ticks():
-            tick.label1.set_fontsize(14)
-            tick.label1.set_fontweight('bold')
-        if sound_speed:
-            cs = self.r*self.Omg#np.sqrt(2*self.kB/(self.Da*self.mCO)*self.T)
-            cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,cs[0,:,:]/Disk.kms,100,colors='k')#*3.438
-            manual_locations=[(350,50),(250,60),(220,65),(190,65),(130,55),(70,40),(25,25)]
-            plt.clabel(cs3,fmt='%0.2f',manual=manual_locations)
-        elif beta is not None:
-            cs = np.sqrt(2*self.kB/(self.Da*self.mu)*self.T)
-            rho = (self.rhoG+4)*self.mu*self.Da #mass density
-            Bmag = np.sqrt(8*np.pi*rho*cs**2/beta) #magnetic field
-            cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(Bmag[0,:,:]),20)
-            plt.clabel(cs3)
-        elif dust:
-            cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,np.log10(self.rhoD[0,:,:]),100,colors='k',linestyles='--')
-        else:
-            manual_locations=[(150,-100),(200,-77),(250,-100),(350,-120),(350,-80),(380,-40),(380,40),(350,80),(350,120),(250,100),(200,77),(150,100)]
-            manual_locations=[(300,30),(250,60),(180,50),(180,70),(110,60),(45,30)]
-            cs3 = plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,self.T[0,:,:],(20,40,60,80,100,120),colors='k',ls='--')
-            plt.clabel(cs3,fmt='%1i',manual=manual_locations)
-        plt.colorbar(cs2,label='log n')
-        #plt.colorbar(cs2,label='log $\Sigma_{FUV}$')
-        plt.xlim(0,rmax)
-        plt.xlabel('R (AU)',fontsize=20)
-        plt.ylabel('Z (AU)',fontsize=20)
-        plt.ylim(0,zmax)
-        plt.show()
+    def get_scale_height(self, r):
+        '''Calculate the scale height as a function of radius, H(R) = h * R'''
+        H = self.sh_param * r
+        return H
 
     def calcH(self,verbose=True,return_pow=False):
         ''' Calculate the equivalent of the pressure scale height within our disks. This is useful for comparison with other models that take this as a free parameter. H is defined as 2^(-.5) times the height where the density drops by 1/e. (The factor of 2^(-.5) is included to be consistent with a vertical density distribution that falls off as exp(-z^2/2H^2))'''
