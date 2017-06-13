@@ -17,35 +17,40 @@ from scipy import ndimage
 from astropy import constants as const
 
 class Disk:
-    'Common class for circumstellar disk structure'
-    #Define useful constants
-    AU = const.au.cgs.value      # - astronomical unit (cm)
-    Rsun = const.R_sun.cgs.value # - radius of the sun (cm)
-    c = const.c.cgs.value        # - speed of light (cm/s)
-    h = const.h.cgs.value        # - Planck's constant (erg/s)
-    kB = const.k_B.cgs.value     # - Boltzmann's constant (erg/K)
-    pc = const.pc.cgs.value      # - parsec (cm)
-    Jy = 1.e23                   # - cgs flux density (Janskys)
-    Lsun = const.L_sun.cgs.value # - luminosity of the sun (ergs)
-    Mearth = const.M_earth.cgs.value # - mass of the earth (g)
-    mh = const.m_p.cgs.value     # - proton mass (g)
-    Da = mh                      # - atmoic mass unit (g)
-    Msun = const.M_sun.cgs.value # - solar mass (g)
-    G = const.G.cgs.value        # - gravitational constant (cm^3/g/s^2)
-    rad = 206264.806   # - radian to arcsecond conversion
-    kms = 1e5          # - convert km/s to cm/s
-    GHz = 1e9          # - convert from GHz to Hz
-    mCO = 12.011+15.999# - CO molecular weight
-    mDCO = mCO+2.014 # - HCO molecular weight
-    mu = 2.37          # - gas mean molecular weight
-    m0 = mu*mh     # - gas mean molecular opacity
-    Hnuctog = 0.706*mu   # - H nuclei abundance fraction (H nuclei:gas)
-    sc = 1.59e21   # - Av --> H column density (C. Qi 08,11)
-    H2tog = 0.8    # - H2 abundance fraction (H2:gas)
-    Tco = 19.    # - freeze out
-    sigphot = 0.79*sc   # - photo-dissociation column
     
-    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,[.79,1000],[10.,1000],-1],obs=[180,131,300,170],rtg=True,vcs=True,exp_temp=False,line='co',ring=None):
+    'Common class for circumstellar disk structure'
+    
+    #Define useful constants
+    AU      = const.au.cgs.value      # - astronomical unit (cm)
+    Rsun    = const.R_sun.cgs.value   # - radius of the sun (cm)
+    c       = const.c.cgs.value       # - speed of light (cm/s)
+    h       = const.h.cgs.value       # - Planck's constant (erg/s)
+    kB      = const.k_B.cgs.value     # - Boltzmann's constant (erg/K)
+    sigmaB  = const.sigma_sb.cgs.value # - Stefan-Boltzmann constant (erg m^-1 s^-1 K^-4)
+    pc      = const.pc.cgs.value      # - parsec (cm)
+    Jy      = 1.e23                   # - cgs flux density (Janskys)
+    Lsun    = const.L_sun.cgs.value   # - luminosity of the sun (ergs)
+    Mearth  = const.M_earth.cgs.value # - mass of the earth (g)
+    mh      = const.m_p.cgs.value     # - proton mass (g)
+    Da      = mh                      # - atmoic mass unit (g)
+    Msun    = const.M_sun.cgs.value   # - solar mass (g)
+    G       = const.G.cgs.value       # - gravitational constant (cm^3/g/s^2)
+    rad     = 206264.806              # - radian to arcsecond conversion
+    kms     = 1e5                     # - convert km/s to cm/s
+    GHz     = 1e9                     # - convert from GHz to Hz
+    mCO     = 12.011+15.999           # - CO molecular weight
+    mDCO    = mCO+2.014               # - HCO molecular weight
+    mu      = 2.37                    # - gas mean molecular weight
+    m0      = mu*mh                   # - gas mean molecular opacity
+    Hnuctog = 0.706*mu                # - H nuclei abundance fraction (H nuclei:gas)
+    sc      = 1.59e21                 # - Av --> H column density (C. Qi 08,11)
+    H2tog   = 0.8                     # - H2 abundance fraction (H2:gas)
+    Tco     = 19.                     # - freeze out
+    sigphot = 0.79*sc                 # - photo-dissociation column
+    
+    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,
+                 [.79,1000],[10.,1000],-1],obs=[180,131,300,170],rtg=True,vcs=True,
+                 exp_temp=False,line='co',ring=None):
 
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
@@ -340,6 +345,16 @@ class Disk:
         add_mol = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
         if add_mol.sum()>0:
             self.Xmol[add_mol]+=abund
+        #add soft boundaries
+        edge1 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rout*Disk.AU)
+        if edge1.sum()>0:
+            self.Xmol[edge1] += abund*np.exp(-(self.r[edge1]/(Rout*Disk.AU))**16)
+        edge2 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r<Rin*Disk.AU)
+        if edge2.sum()>0:
+            self.Xmol[edge2] += abund*(1-np.exp(-(self.r[edge2]/(Rin*Disk.AU))**20.))
+        edge3 = (self.sig_col*Disk.Hnuctog/Disk.m0<Sig0*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
+        if edge3.sum()>0:
+            self.Xmol[edge3] += abund*(1-np.exp(-((self.sig_col[edge3]*Disk.Hnuctog/Disk.m0)/(Sig0*Disk.sc))**8.))
         zap = (self.Xmol<0)
         if zap.sum()>0:
             self.Xmol[zap]=1e-18
@@ -494,83 +509,5 @@ class Disk:
         else:
             return H
 
-    def doppler(self):
-        #self.r is the radial coordinate for the radiative transfer grid, which is what is needed for the turbulence calculation
-        '''This is the functional form taken from Jake's model for the turbulence.'''
 
-        rad=[10*self.AU,30*self.AU,100*self.AU,459.0*self.AU]
-        a0 = [0.0232633,0.0232633,0.0243764]
-        a1 = [2.62030,2.62030,2.68668]
-        a2 = [0.318205,0.318205,0.196525]
-        a3 = [14.2006,14.2006,12.5146]
-        a4 = [0.0414938,0.0414938,0.0563762]
-        f1 = np.zeros((self.nphi,self.nr,self.nz))
-        hr_pow=self.calcH(verbose=False,return_pow=True) #H100,power law index
-        hr = hr_pow[0]*Disk.AU*(self.r/(100*Disk.AU))**(hr_pow[1])
-
-        ii = (self.r <= rad[0])
-        a0i=a0[0]
-        a1i=a1[0]
-        a2i=a2[0]
-        a3i=a3[0]
-        a4i=a4[0]
-        f1[ii] = np.maximum(np.minimum(a0i*np.exp((self.Z[ii]/hr[ii])**2/a1i),a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i)),a4i)
-
-        ii = (self.r>rad[0]) & (self.r<=rad[1])
-        m = (a0[1]-a0[0])/(rad[1]-rad[0])
-        b = a0[0]-m*rad[0]
-        a0i = m*self.r[ii]+b
-        m = (a1[1]-a1[0])/(rad[1]-rad[0])
-        b = a1[0]-m*rad[0]
-        a1i = m*self.r[ii]+b
-        m = (a2[1]-a2[0])/(rad[1]-rad[0])
-        b = a2[0]-m*rad[0]
-        a2i = m*self.r[ii]+b
-        m = (a3[1]-a3[0])/(rad[1]-rad[0])
-        b = a3[0]-m*rad[0]
-        a3i = m*self.r[ii]+b
-        m = (a4[1]-a4[0])/(rad[1]-rad[0])
-        b = a4[0]-m*rad[0]
-        a4i = m*self.r[ii]+b
-        f1[ii] = np.maximum(np.minimum(a0i*np.exp((self.Z[ii]/hr[ii])**2/a1i),a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i)),a4i)
-
-        ii = (self.r>rad[1]) & (self.r<=rad[2])
-        m = (a0[2]-a0[1])/(rad[2]-rad[1])
-        b = a0[1]-m*rad[1]
-        a0i = m*self.r[ii]+b
-        m = (a1[2]-a1[1])/(rad[2]-rad[1])
-        b = a1[1]-m*rad[1]
-        a1i = m*self.r[ii]+b
-        m = (a2[2]-a2[1])/(rad[2]-rad[1])
-        b = a2[1]-m*rad[1]
-        a2i = m*self.r[ii]+b
-        m = (a3[2]-a3[2])/(rad[2]-rad[1])
-        b = a3[1]-m*rad[1]
-        a3i = m*self.r[ii]+b
-        m = (a4[2]-a4[1])/(rad[2]-rad[1])
-        b = a4[1]-m*rad[1]
-        a4i = m*self.r[ii]+b
-        f1[ii] = np.maximum(np.minimum(a0i*np.exp((self.Z[ii]/hr[ii])**2/a1i),a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i)),a4i)
-        
-        ii = (self.r>rad[2]) & (self.r<rad[3])
-        a0i = a0[2]
-        m = (0.01-a1[2])/(rad[3]-rad[2])
-        b = a1[2]-m*rad[2]
-        a1i = m*self.r[ii]+b
-        a2i=a2[2]
-        a3i=a3[2]
-        a4i=a4[2]
-        f1[ii] = np.maximum(np.minimum(a0i*np.exp((self.Z[ii]/hr[ii])**2/a1i),a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i)),a4i)
-
-        ii = self.r>rad[3]
-        a0i = a0[2]
-        a1i = 0.01
-        a2i = a2[2]
-        a3i = a3[2]
-        a4i = a4[2]
-        f1[ii] = np.maximum(a2i*np.exp((self.Z[ii]/hr[ii])**2/a3i),a4i)
-
-        return f1
-        #cs=plt.contour(self.r[0,:,:]/Disk.AU,self.Z[0,:,:]/Disk.AU,f1[0,:,:],np.arange(0,1,.01))
-        #plt.colorbar(cs)
 
