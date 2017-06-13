@@ -52,8 +52,8 @@ class Disk:
     sigphot = 0.79*sc                  # - photo-dissociation column
     
     def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,
-    	         [.79,1000],[10.,1000],-1, 500, 500],obs=[180,131,300,170],rtg=True,vcs=True,
-    	         exp_temp=False,line='co',ring=None):
+    	         [.79,1000],[10.,1000],-1, 500, 500, 0.09*Lsun],obs=[180,131,300,170],exp_temp='False',
+    	         rtg=True,vcs=True,line='co',ring=None):
 
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
@@ -97,7 +97,8 @@ class Disk:
 
         #set number of model grid elements in radial and vertical direction
         self.r_gridsize = params[16]
-        self.z_gridsize = params[17] 
+        self.z_gridsize = params[17]
+        self.Lstar      = params[18]
         
     def set_obs(self,obs):
         'Set the observational parameters. These parameters are the number of r, phi, S grid points in the radiative transer grid, along with the maximum height of the grid.'
@@ -107,7 +108,7 @@ class Disk:
         self.zmax = obs[3]*Disk.AU
                 
 
-    def set_structure(self,exp_temp=False):
+    def set_structure(self,exp_temp="False"):
         '''Calculate the disk density and temperature structure given the specified parameters'''
         # Define the desired regular cylindrical (r,z) grid
         nrc  = self.r_gridsize  # - number of unique r points
@@ -118,8 +119,6 @@ class Disk:
         rf   = np.logspace(np.log10(rmin),np.log10(rmax),nrc)
         zf   = np.logspace(np.log10(zmin),np.log10(self.zmax),nzc)
 
-        #idz = np.zeros(nzc)+1
-        #rcf = np.outer(rf,idz)
         idr = np.ones(nrc)
         zcf = np.outer(idr,zf)
         rcf = rf[:,np.newaxis]*np.ones(nzc)
@@ -137,7 +136,6 @@ class Disk:
         self.grid=grid
 
         #define temperature structure
-        # use Dartois (03) type II temperature structure
         delta = 1.                # shape parameter
         zq = self.zq0*Disk.AU*(rcf/(150*Disk.AU))**1.3 #1.3
         tmid = self.tmid0*(rcf/(150*Disk.AU))**self.qq#[0] #******************#
@@ -145,21 +143,32 @@ class Disk:
         tempg = tatm + (tmid-tatm)*np.cos((np.pi/(2*zq))*zcf)**(2.*delta)
         ii = zcf > zq
         tempg[ii] = tatm[ii]
+
         if exp_temp:
             #Type I temperature structure
             tempg = tmid*np.exp(np.log(tatm/tmid)*zcf/zq)
             ii = tempg > 500 #cap on temperatures
             tempg[ii] = 500.
-                    
         
         # Calculate vertical density structure
-        Sc = self.McoG*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
-        siggas = Sc*(rf/self.Rc)**(-1*self.pp)*np.exp(-1*(rf/self.Rc)**(2-self.pp))
+        Sc_old = self.McoG*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
+                         #        siggas = Sc*(rf/self.Rc)**(-1*self.pp)*np.exp(-1*(rf/self.Rc)**(2-self.pp))
+        #change the previous line to be a power law in radius, with index pp, extending from Rin to Rc. From Rc to Rout the surface density is 0 (will the zeros cause problems for the hydrostatic equilibrium calculation? if it does then I could simply set Rout=Rc)
+        #what is normalization on Sig_gas, in terms of Mdisk?
+        if self.pp ==2:
+            Sc = self.McoG/(2*np.pi*(np.log(self.Rc)-np.log(self.Rin)))
+        else:
+            Sc = self.McoG*(2.-self.pp)/(2*np.pi*(self.Rc**(2-self.pp)-self.Rin**(2-self.pp)))
+
+        siggas = Sc*rf**(-1*self.pp)
+        siggas[rf<self.Rin] = 1e-60
+        siggas[rf>self.Rc] = 1e-60
+
         if self.ring is not None:
             w = np.abs(rcf-self.Rring)<self.Wring/2.
-            if w.sum() > 0:
-                tempg[w] = tempg[w]*(rcf[w]/(150*Disk.AU))**(self.sig_enhance-self.qq)/((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.sig_enhance)
-                #print 'Temperature enhancement at ring center: ',(self.Rring/(150*Disk.AU))**(self.sig_enhance-self.qq)/((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.sig_enhance)
+            if w.sum()>0:
+                tempg[w] = tempg[w]*(rcf[w]/(150*Disk.AU))**(self.sig_enhance-self.qq)((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.enhance)
+
 
         self.calc_hydrostatic(tempg,siggas,grid)
         
@@ -442,6 +451,7 @@ class Disk:
         params.append(self.handed)
         params.append(self.r_gridsize)
         params.append(self.z_gridsize)
+        params.append(self.Lstar)
         return params
 
     def get_obs(self):
