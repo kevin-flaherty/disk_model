@@ -136,6 +136,15 @@ class Disk:
         #calculate the scale height of the disk
         self.H = self.get_scale_height(rcf)
 
+        #calculate the dust critical surface density
+        dsigma_crit = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Rout**(2. + self.pp) - self.Rin**(2. + self.pp)))
+
+        #calculate the dust surface density structure
+        self.sigmaD = dsigma_crit * (rcf / (10. * Disk.AU))**self.pp
+
+        #calculate the dust volume density structure
+        rhoD = self.sigmaD / (self.H * np.sqrt(np.pi)) * np.exp(-1. * (0 / self.H)**2)
+
         # Calculate vertical density structure
         Sc_old = self.Mdust*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
                          #        siggas = Sc*(rf/self.Rc)**(-1*self.pp)*np.exp(-1*(rf/self.Rc)**(2-self.pp))
@@ -195,12 +204,14 @@ class Disk:
 
 
         
-        self.rf = rf
-        self.nrc = nrc
-        self.zf = zf
-        self.nzc = nzc
-        self.tempg = tempg
-        self.Omg0 = Omg
+        self.rf     = rf
+        self.nrc    = nrc
+        self.zf     = zf
+        self.nzc    = nzc
+        self.tempg  = tempg
+        self.rhoD   = rhoD
+        self.rhoD0  = rhoD
+        self.Omg0   = Omg
         
         
         
@@ -246,6 +257,7 @@ class Disk:
         xind = np.interp(tr.flatten(),self.rf,range(self.nrc)) #rf,nrc
         yind = np.interp(np.abs(tdiskZ).flatten(),self.zf,range(self.nzc)) #zf,nzc
         tT = ndimage.map_coordinates(self.tempg,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
+        tDD = ndimage.map_coordinates(self.rhoD,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #dustg
         Omg = ndimage.map_coordinates(self.Omg0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #Omg
         tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=2).reshape(self.nphi,self.nr,self.nz)
 
@@ -301,6 +313,7 @@ class Disk:
         self.i_notdisk = notdisk
         self.i_xydisk = xydisk
         self.cs = np.sqrt(2*self.kB/(self.Da*2)*self.T)
+        self.rhoD = tDD
         #self.sig_col=tsig_col
         #self.rhoH2 = trhoH2
 
@@ -326,7 +339,7 @@ class Disk:
 
         self.dBV=tdBV
     
-    def add_dust_ring(self,Rin,Rout,dtg,ppD,initialize=False):
+    def add_dust_ring(self,Rin,Rout,dtg,ppD,initialize=True):
         '''Add a ring of dust with a specified inner radius, outer radius, dust-to-gas ratio (defined at the midpoint) and slope of the dust-to-gas-ratio'''
         
         if initialize:
@@ -336,7 +349,7 @@ class Disk:
         w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
         Rmid = (Rin+Rout)/2.*Disk.AU
         self.dtg[w] += dtg*(self.r[w]/Rmid)**(-ppD)
-        self.rhoD = self.rhoH2*self.dtg*2*Disk.mh
+        #self.rhoD = self.rhoH2*self.dtg*2*Disk.mh
 
     def add_mol_ring(self,Rin,Rout,Sig0,Sig1,abund,initialize=False):
         '''Add a ring of fixed abundance, between Rin and Rout (in the radial direction) and Sig0 and Sig1 (in the vertical direction).
@@ -414,6 +427,10 @@ class Disk:
     def temperature(self):
         'Return the temperature structure'
         return self.tempg
+
+    def dust_density(self):
+        'Return the dust density structure'
+        return self.rhoD0
 
     def grid(self):
         'Return an XYZ grid (but which one??)'
