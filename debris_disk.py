@@ -113,6 +113,7 @@ class Disk:
         nrc  = self.r_gridsize  # - number of unique r points
         nzc  = self.z_gridsize  # - number of unique z points
         rmin = self.Rin         # - minimum r [AU]
+
         rmax = self.Rout        # - maximum r [AU]
         zmin = .1*Disk.AU       # - minimum z [AU] *****0.1?
         rf   = np.logspace(np.log10(rmin),np.log10(rmax),nrc)
@@ -121,6 +122,12 @@ class Disk:
         idr  = np.ones(nrc)
         zcf  = np.outer(idr,zf)
         rcf  = rf[:,np.newaxis]*np.ones(nzc)
+
+        plt.imshow(rcf, origin="lower")
+        plt.show()
+
+        plt.imshow(zcf, origin="lower")
+        plt.show()
 
         # Interpolate dust temperature and density onto cylindrical grid
         tf = 0.5*np.pi-np.arctan(zcf/rcf)  # theta values
@@ -131,19 +138,21 @@ class Disk:
         self.grid=grid
 
         #define temperature structure
-        tempg = (self.Lstar * self.Lsun / (4 * np.pi * rcf**2 * self.sigmaB))**0.25
+        tempg = (self.Lstar * self.Lsun / (16. * np.pi * rcf**2 * self.sigmaB))**0.25
         
         #calculate the scale height of the disk
-        self.H = self.get_scale_height(rcf)
+        self.H = self.sh_param * rcf
 
         #calculate the dust critical surface density
         dsigma_crit = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Rout**(2. + self.pp) - self.Rin**(2. + self.pp)))
 
         #calculate the dust surface density structure
-        self.sigmaD = dsigma_crit * (rcf / (10. * Disk.AU))**self.pp
+        self.sigmaD = dsigma_crit * (rcf**self.pp)
 
-        #calculate the dust volume density structure
-        rhoD = self.sigmaD / (self.H * np.sqrt(np.pi)) * np.exp(-1. * (0 / self.H)**2)
+        print np.shape(zcf)
+
+        #calculate the dust volume density structure as a function of radius
+        rhoD = self.sigmaD / (self.H * np.sqrt(np.pi)) * np.exp(-1. * (zcf / self.H)**2)
 
         # Calculate vertical density structure
         Sc_old = self.Mdust*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
@@ -463,11 +472,6 @@ class Disk:
         obs.append(self.nz)
         obs.append(self.zmax/Disk.AU)
         return obs
-
-    def get_scale_height(self, r):
-        '''Calculate the scale height as a function of radius, H(R) = h * R'''
-        H = self.sh_param * r
-        return H
 
     def calcH(self,verbose=True,return_pow=False):
         ''' Calculate the equivalent of the pressure scale height within our disks. This is useful for comparison with other models that take this as a free parameter. H is defined as 2^(-.5) times the height where the density drops by 1/e. (The factor of 2^(-.5) is included to be consistent with a vertical density distribution that falls off as exp(-z^2/2H^2))'''
