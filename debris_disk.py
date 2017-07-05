@@ -123,12 +123,6 @@ class Disk:
         zcf  = np.outer(idr,zf)
         rcf  = rf[:,np.newaxis]*np.ones(nzc)
 
-        plt.imshow(rcf, origin="lower")
-        plt.show()
-
-        plt.imshow(zcf, origin="lower")
-        plt.show()
-
         # Interpolate dust temperature and density onto cylindrical grid
         tf = 0.5*np.pi-np.arctan(zcf/rcf)  # theta values
         rrf = np.sqrt(rcf**2.+zcf**2)
@@ -149,10 +143,15 @@ class Disk:
         #calculate the dust surface density structure
         self.sigmaD = dsigma_crit * (rcf**self.pp)
 
-        print np.shape(zcf)
-
         #calculate the dust volume density structure as a function of radius
         rhoD = self.sigmaD / (self.H * np.sqrt(np.pi)) * np.exp(-1. * (zcf / self.H)**2)
+
+        #plt.plot(zcf[497,:]/Disk.AU, rhoD[497,:])
+        
+        #plt.xlabel(r"$z$($r$ = 40 [au]) [au]")
+        #plt.ylabel(r"$\rho_D (z)$ [g cm$^{-3}$]")
+        #plt.title("Mass Density vs. Midplane Distance at 40 au")
+        #plt.show()
 
         # Calculate vertical density structure
         Sc_old = self.Mdust*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
@@ -174,23 +173,23 @@ class Disk:
                 tempg[w] = tempg[w]*(rcf[w]/(150*Disk.AU))**(self.sig_enhance-self.qq)((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.enhance)
 
 
-        self.calc_hydrostatic(tempg,siggas,grid)
+        #self.calc_hydrostatic(tempg,siggas,grid)
         
         #Calculate radial pressure differential
-        Pgas = Disk.kB/Disk.m0*self.rho0*tempg
-        dPdr = (np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
+        #Pgas = Disk.kB/Disk.m0*self.rho0*tempg
+        #dPdr = (np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
         
         #Calculate velocity field
-        Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
-        Omk = np.sqrt(Disk.G*self.Mstar/rcf**3.)
+        #Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
+        #Omk = np.sqrt(Disk.G*self.Mstar/rcf**3.)
         
         # Check for NANs
-        ii = np.isnan(Omg)
-        Omg[ii] = Omk[ii]
-        ii = np.isnan(self.rho0)
+        #ii = np.isnan(Omg)
+        #Omg[ii] = Omk[ii]
+        ii = np.isnan(rhoD)
         if ii.sum() > 0:
-            self.rho0[ii] = 1e-60
-            print 'Beware: removed NaNs from density (#%s)' % ii.sum()
+            rhoD[ii] = 1e-60
+            print 'Beware: removed NaNs from dust density (#%s)' % ii.sum()
         ii = np.isnan(tempg)
         if ii.sum() > 0:
             tempg[ii] = 2.73
@@ -198,14 +197,6 @@ class Disk:
 
         # find photodissociation boundary layer from top
         sig_col = np.zeros((nrc,nzc)) #Cumulative mass surface density along vertical lines starting at z=170AU
-        for ir in range(nrc):
-            psl = (Disk.Hnuctog/Disk.m0*self.rho0[ir,:])[::-1]
-            zsl = self.zmax - (zcf[ir,:])[::-1]
-            foo = (zsl-np.roll(zsl,1))*(psl+np.roll(psl,1))/2.
-            foo[0] = 0
-            nsl = foo.cumsum()
-            #cumulative mass column density along vertical columns
-            sig_col[ir,:] = nsl[::-1]*Disk.m0/Disk.Hnuctog
         self.sig_col = sig_col #save it for later
         
         # Set default freeze-out temp
@@ -220,7 +211,7 @@ class Disk:
         self.tempg  = tempg
         self.rhoD   = rhoD
         self.rhoD0  = rhoD
-        self.Omg0   = Omg
+        #self.Omg0   = Omg
         
         
         
@@ -267,7 +258,7 @@ class Disk:
         yind = np.interp(np.abs(tdiskZ).flatten(),self.zf,range(self.nzc)) #zf,nzc
         tT = ndimage.map_coordinates(self.tempg,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
         tDD = ndimage.map_coordinates(self.rhoD,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #dustg
-        Omg = ndimage.map_coordinates(self.Omg0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #Omg
+        #Omg = ndimage.map_coordinates(self.Omg0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #Omg
         tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=2).reshape(self.nphi,self.nr,self.nz)
 
         tT[notdisk]=2.73
@@ -286,11 +277,11 @@ class Disk:
         if zap.sum() > 0:
             self.Xmol[zap] = 1/5.*self.Xmol[zap]
 
-        trhoH2 = Disk.H2tog/Disk.m0*ndimage.map_coordinates(self.rho0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)
-        trhoG = trhoH2*self.Xmol
+        #trhoH2 = Disk.H2tog/Disk.m0*ndimage.map_coordinates(self.rho0,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)
+        #trhoG = trhoH2*self.Xmol
         #trhoG[notdisk] = 0
-        trhoH2[notdisk] = 0
-        self.rhoH2 = trhoH2
+        #trhoH2[notdisk] = 0
+        #self.rhoH2 = trhoH2
 
         self.add_dust_ring(self.Rin,self.Rout,0.,0.,initialize=True) #initialize dust density to 0
 
@@ -317,8 +308,8 @@ class Disk:
         #self.r = tr
         self.T = tT
         self.dBV = tdBV
-        self.rhoG = trhoG
-        self.Omg = Omg
+        #self.rhoG = trhoG
+        #self.Omg = Omg
         self.i_notdisk = notdisk
         self.i_xydisk = xydisk
         self.cs = np.sqrt(2*self.kB/(self.Da*2)*self.T)
@@ -384,50 +375,6 @@ class Disk:
             self.Xmol[zap]=1e-18
         if not initialize:
             self.rhoG = self.rhoH2*self.Xmol
-        
-       
-    def calc_hydrostatic(self,tempg,siggas,grid):
-        nrc = grid['nrc']
-        nzc = grid['nzc']
-        zcf = grid['zcf']
-        rf = grid['rf']
-
-        #compute rho structure
-        rho0 = np.zeros((nrc,nzc))
-        sigint = siggas
-        
-        #print 'Doing hydrostatic equilibrium'
-        for ir in range(nrc):
-            #compute gravo-thermal constant
-            grvc = Disk.G*self.Mstar*Disk.m0/Disk.kB
-
-            #extract the T(z) profile at a given radius
-            T = tempg[ir]
-                        
-            #differential equation for vertical density profile
-            z = zcf[ir]
-            dz = (z - np.roll(z,1))
-            dlnT = (np.log(T)-np.roll(np.log(T),1))/dz
-            dlnp = -1*grvc*z/(T*(rf[ir]**2.+z**2.)**1.5)-dlnT
-            dlnp[0] = -1*grvc*z[0]/(T[0]*(rf[ir]**2.+z[0]**2.)**1.5)
-            
-            #numerical integration to get vertical density profile
-            foo = dz*(dlnp+np.roll(dlnp,1))/2.
-            foo[0] = 0.
-            lnp = foo.cumsum()
-            
-            #normalize the density profile (note: this is just half the sigma value!)
-            dens = 0.5*sigint[ir]*np.exp(lnp)/np.trapz(np.exp(lnp),z)
-
-            #gaussian profile
-            #hr = np.sqrt(2*T[0]*rf[ir]**3./grvc)
-            #dens = sigint[ir]/(np.sqrt(np.pi)*hr)*np.exp(-(z/hr)**2.)
-
-            rho0[ir,:] = dens
-            
-
-        self.rho0=rho0
-        
 
     def density(self):
         'Return the density structure'
