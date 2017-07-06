@@ -154,23 +154,23 @@ class Disk:
         #plt.show()
 
         # Calculate vertical density structure
-        Sc_old = self.Mdust*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
+        #Sc_old = self.Mdust*(2.-self.pp)/(2*np.pi*self.Rc*self.Rc)
                          #        siggas = Sc*(rf/self.Rc)**(-1*self.pp)*np.exp(-1*(rf/self.Rc)**(2-self.pp))
         #change the previous line to be a power law in radius, with index pp, extending from Rin to Rc. From Rc to Rout the surface density is 0 (will the zeros cause problems for the hydrostatic equilibrium calculation? if it does then I could simply set Rout=Rc)
         #what is normalization on Sig_gas, in terms of Mdisk?
-        if self.pp ==2:
-            Sc = self.Mdust/(2*np.pi*(np.log(self.Rc)-np.log(self.Rin)))
-        else:
-            Sc = self.Mdust*(2.-self.pp)/(2*np.pi*(self.Rc**(2-self.pp)-self.Rin**(2-self.pp)))
+        #if self.pp ==2:
+        #    Sc = self.Mdust/(2*np.pi*(np.log(self.Rc)-np.log(self.Rin)))
+        #else:
+        #    Sc = self.Mdust*(2.-self.pp)/(2*np.pi*(self.Rc**(2-self.pp)-self.Rin**(2-self.pp)))
 
-        siggas = Sc*rf**(-1*self.pp)
-        siggas[rf<self.Rin] = 1e-60
-        siggas[rf>self.Rc] = 1e-60
+        #siggas = Sc*rf**(-1*self.pp)
+        #siggas[rf<self.Rin] = 1e-60
+        #siggas[rf>self.Rc] = 1e-60
 
-        if self.ring is not None:
-            w = np.abs(rcf-self.Rring)<self.Wring/2.
-            if w.sum()>0:
-                tempg[w] = tempg[w]*(rcf[w]/(150*Disk.AU))**(self.sig_enhance-self.qq)((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.enhance)
+        #if self.ring is not None:
+        #    w = np.abs(rcf-self.Rring)<self.Wring/2.
+        #    if w.sum()>0:
+        #        tempg[w] = tempg[w]*(rcf[w]/(150*Disk.AU))**(self.sig_enhance-self.qq)((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.enhance)
 
 
         #self.calc_hydrostatic(tempg,siggas,grid)
