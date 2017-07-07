@@ -7,3 +7,5 @@
 *.im/*
 *.fits
 *.log
+aumic_model.py
+
