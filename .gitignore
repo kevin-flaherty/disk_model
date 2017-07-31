@@ -8,4 +8,5 @@
 *.fits
 *.log
 aumic_model.py
+.nfs*
 
