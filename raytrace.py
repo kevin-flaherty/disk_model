@@ -49,9 +49,9 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
     
 
     # - disk parameters
-    thet = math.radians(params[6])    # - convert inclination into radians
-    Mstar = params[7]*Msun            # - convert mass of star to grams
-    handed = params[13]               # - handedness of the disk
+    thet = disk.thet    # - convert inclination into radians
+    Mstar = disk.Mstar            # - convert mass of star to grams
+    handed = disk.handed               # - handedness of the disk
 
     nphi = disk.nphi
     nr = disk.nr
