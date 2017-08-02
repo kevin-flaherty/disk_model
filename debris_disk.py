@@ -53,13 +53,13 @@ class Disk:
     
     def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,
     	         [.79,1000],[10.,1000],-1, 500, 500, 0.09, 0.1],obs=[180,131,300,170],rtg=True,
-                 vcs=True,line='co',ring=None):
+                 vcs=True,sh_relation='linear',line='co',ring=None):
 
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
         self.set_params(params) # set the structure parameters
 
-        self.set_structure()  # use obs and params to create disk structure
+        self.set_structure(sh_relation)  # use obs and params to create disk structure
         if rtg:
             self.set_rt_grid(vcs=vcs)
             self.set_line(line=line,vcs=vcs)
@@ -109,7 +109,7 @@ class Disk:
         self.zmax = obs[3]*Disk.AU
                 
 
-    def set_structure(self):
+    def set_structure(self, sh_relation):
         '''Calculate the disk density and temperature structure given the specified parameters'''
         # Define the desired regular cylindrical (r,z) grid
         nrc  = self.r_gridsize  # - number of unique r points
@@ -137,7 +137,7 @@ class Disk:
         tempg = (self.Lstar * self.Lsun / (16. * np.pi * rcf**2 * self.sigmaB))**0.25
         
         #calculate the scale height of the disk
-        self.H = self.sh_param * rcf
+        self.set_scale_height(sh_relation, rcf)
 
         #calculate the dust critical surface density
         dsigma_crit = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Rout**(2. + self.pp) - self.Rin**(2. + self.pp)))
@@ -316,6 +316,17 @@ class Disk:
             self.Xmol[zap]=1e-18
         if not initialize:
             self.rhoG = self.rhoH2*self.Xmol
+            
+    def set_scale_height(self, sh_relation, rcf):
+        'set scale height parameter using given relationship'
+
+        if sh_relation.lower() == 'linear':
+            self.H = self.sh_param * rcf
+        elif sh_relation.lower() == 'const':
+            length = np.ones(len(rcf)) * Disk.AU
+            self.H = self.sh_param * length
+        else:
+            print 'WARNING::Could not determine scale height structure from given inputs. Please check sh_relation.'
 
     def density(self):
         'Return the density structure'
