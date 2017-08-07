@@ -178,8 +178,7 @@ class Disk:
         ii = np.isinf(Omg)
         if ii.sum() > 0:
             Omg[ii] = Omk[ii]
-            print ii.sum(),(self.rho0==0).sum()
-
+            
         # find photodissociation boundary layer from top
         sig_col = np.zeros((nrc,nzc)) #Cumulative mass surface density along vertical lines starting at z=170AU
         for ir in range(nrc):
