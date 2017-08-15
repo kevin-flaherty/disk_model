@@ -344,13 +344,17 @@ class Disk:
         self.dtg[w] += dtg*(self.r[w]/Rmid)**(-ppD)
         self.rhoD = self.rhoH2*self.dtg*2*Disk.mh
 
-    def add_mol_ring(self,Rin,Rout,Sig0,Sig1,abund,initialize=False):
+    def add_mol_ring(self,Rin,Rout,Sig0,Sig1,abund,initialize=False,just_frozen=False):
         '''Add a ring of fixed abundance, between Rin and Rout (in the radial direction) and Sig0 and Sig1 (in the vertical direction).
-        disk.add_mol_ring(10*disk.AU,100*disk.AU,.79*disk.sc,1000*disk.sc,1e-4)
+        disk.add_mol_ring(10,100,.79,1000,1e-4)
+        just_frozen: only apply the abundance adjustment to the areas of the disk where CO is nominally frozen out
         '''
         if initialize:
             self.Xmol = np.zeros(np.shape(self.r))+1e-18
-        add_mol = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
+        if just_frozen:
+            add_mol = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU) & (self.T < self.Tco)
+        else:
+            add_mol = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
         if add_mol.sum()>0:
             self.Xmol[add_mol]+=abund
         #add soft boundaries
