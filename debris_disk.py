@@ -280,6 +280,12 @@ class Disk:
 
         self.dBV=tdBV
     
+    def add_dust_gap(self,Rin,Rout):
+        '''Add a gap in the dust with a specified inner and outer radius to the disk'''
+        w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
+        Rmid = (Rin+Rout)/2.*Disk.AU
+        self.rhoD[w] = 0. 
+
     def add_dust_ring(self,Rin,Rout,dtg,ppD,initialize=True):
         '''Add a ring of dust with a specified inner radius, outer radius, dust-to-gas ratio (defined at the midpoint) and slope of the dust-to-gas-ratio'''
         
