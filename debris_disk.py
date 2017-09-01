@@ -162,13 +162,14 @@ class Disk:
         sig_col = np.zeros((nrc,nzc)) #Cumulative mass surface density along vertical lines starting at z=170AU
         self.sig_col = sig_col        #save it for later        
         
-        self.rf     = rf
-        self.nrc    = nrc
-        self.zf     = zf
-        self.nzc    = nzc
-        self.tempg  = tempg
-        self.rhoD   = rhoD
-        self.rhoD0  = rhoD
+        self.rf          = rf
+        self.nrc         = nrc
+        self.zf          = zf
+        self.nzc         = nzc
+        self.tempg       = tempg
+        self.dsigma_crit = dsigma_crit
+        self.rhoD        = rhoD
+        self.rhoD0       = rhoD
         
         
     def set_rt_grid(self,vcs=True):
@@ -281,7 +282,19 @@ class Disk:
         self.dBV=tdBV
     
     def add_dust_gap(self,Rin,Rout):
-        '''Add a gap in the dust with a specified inner and outer radius to the disk'''
+        '''Add a gap in the dust with a specified inner and outer radius to the disk,
+           and re-normalize the remaining dust density structure to account for the
+           missing mass'''
+
+        #calculate the mass left after subtracting a ring of size Rin,Rout
+        gap_mass       = 2 * np.pi * self.dsigma_crit * (((Rout*Disk.AU)**(2 + self.pp)) - ((Rin*Disk.AU)**(2 + self.pp))) / (self.pp + 2.)
+        remaining_mass = self.Mdust - gap_mass
+
+        #re-normalize disk density to account for missing gap mas
+        norm_factor = self.Mdust / remaining_mass
+        self.rhoD = self.rhoD * norm_factor
+        
+        #Finally, zero out density where the gap is located
         w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
         Rmid = (Rin+Rout)/2.*Disk.AU
         self.rhoD[w] = 0. 
