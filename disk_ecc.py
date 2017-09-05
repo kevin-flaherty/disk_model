@@ -49,7 +49,7 @@ class Disk:
     Tco = 19.    # - freeze out
     sigphot = 0.79*sc   # - photo-dissociation column
     
-    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1,0,0,[.76,1000],[10,800]],obs=[180,131,300,170],rtg=True, line='co',ring=None):
+    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1,0,0,[.76,1000],[10,800]],obs=[180,131,300,170],rtg=True,vcs=True,line='co',ring=None):
 
         tb = time.clock()
         self.ring=ring
@@ -59,7 +59,7 @@ class Disk:
         self.set_structure()  # use obs and params to create disk structure
         if rtg:
             self.set_rt_grid()
-            self.set_line(line=line,True)
+            self.set_line(line=line,vcs=vcs)
         tf = time.clock()
         print "disk init took {t} seconds".format(t=(tf-tb))
 
@@ -435,8 +435,8 @@ class Disk:
         ### Start of Radiative Transfer portion of the code...
         # Define and initialize cylindrical grid
         Smin = 1*Disk.AU                 # offset from zero to log scale
-        if self.thet > np.arctan(self.Rout/self.zmax):
-            Smax = 2*self.Rout/self.sinthet
+        if self.thet > np.arctan(self.Aout/self.zmax):
+            Smax = 2*self.Aout/self.sinthet
         else:
             Smax = 2.*self.zmax/self.costhet       # los distance through disk
         Smid = Smax/2.                    # halfway along los
@@ -460,7 +460,7 @@ class Disk:
 
         # transform grid to disk coordinates
         tdiskZ = self.zmax*(np.ones((self.nphi,self.nr,self.nz)))-self.costhet*S
-        if self.thet > np.arctan(self.Rout/self.zmax):
+        if self.thet > np.arctan(self.Aout/self.zmax):
             tdiskZ -=(Y*self.sinthet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
         tdiskY = ytop - self.sinthet*S + (Y/self.costhet).repeat(self.nz).reshape(self.nphi,self.nr,self.nz)
         tr = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY**2)
@@ -468,11 +468,10 @@ class Disk:
         ###### should be real outline? requiring a loop over f or just Aout(1+ecc)######
         notdisk = (tr > self.Aout*(1.+self.ecc)) | (tr < self.Ain*(1-self.ecc))  # - individual grid elements not in disk
         xydisk =  tr[:,:,0] <= self.Aout*(1.+self.ecc)+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
+        self.r = tr
 
-        if np.size(self.Xco)>1:
-            Xmol = self.Xco[0]*np.exp(-(self.Rabund[0]-tr)**2/(2*self.Rabund[3]**2))+self.Xco[1]*np.exp(-(self.Rabund[1]-tr)**2/(2*self.Rabund[4]**2))+self.Xco[2]*np.exp(-(self.Rabund[2]-tr)**2/(2*self.Rabund[5]**2))
-        else:
-            Xmol = self.Xco
+        
+        
 
         #print "new grid {t}".format(t=time.clock()-tst)
         # Here include section that redefines S along the line of sight
@@ -497,36 +496,51 @@ class Disk:
         #Omgx = ndimage.map_coordinates(self.Omg0[0],[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #Omgs
         Omg = ndimage.map_coordinates(self.Omg0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #Omgy
         #Omgz = np.zeros(np.shape(Omgy))
-        trhoG = Disk.H2tog*Xmol/Disk.m0*ndimage.map_coordinates(self.rho0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)
-        trhoH2 = trhoG/Xmol #** not on cluster**
+        #trhoG = Disk.H2tog*self.Xmol/Disk.m0*ndimage.map_coordinates(self.rho0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)
+        #trhoH2 = trhoG/self.Xmol #** not on cluster**
         #zpht = np.interp(tr.flatten(),self.rf,self.zpht).reshape(self.nphi,self.nr,self.nz) #tr,rf,zpht
         tsig_col = ndimage.map_coordinates(self.sig_col,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)
         zpht_up = ndimage.map_coordinates(self.zpht_up,[[aind],[phiind]],order=1).reshape(self.nphi,self.nr,self.nz) #tr,rf,zpht
         zpht_low = ndimage.map_coordinates(self.zpht_low,[[aind],[phiind]],order=1).reshape(self.nphi,self.nr,self.nz) #tr,rf,zpht
-        tT[notdisk] = 0 #** not on cluster ***
-        trhoG[notdisk] = 0 #*** not on cluster ***
-        trhoH2[notdisk] = 0 #*** not on cluster ***
+        tT[notdisk] = 0 
+        self.sig_col = tsig_col
+
+        self.add_mol_ring(self.Rabund[0]/Disk.AU,self.Rabund[1]/Disk.AU,self.sigbound[0]/Disk.sc,self.sigbound[1]/Disk.sc,self.Xco,initialize=True)
+
+        if np.size(self.Xco)>1:
+            Xmol = self.Xco[0]*np.exp(-(self.Rabund[0]-tr)**2/(2*self.Rabund[3]**2))+self.Xco[1]*np.exp(-(self.Rabund[1]-tr)**2/(2*self.Rabund[4]**2))+self.Xco[2]*np.exp(-(self.Rabund[2]-tr)**2/(2*self.Rabund[5]**2))
+        #else:
+        #    Xmol = self.Xco
+
+
 
         #print "image interp {t}".format(t=time.clock()-tst)
         
         # photo-dissociation
-        zap = (np.abs(tdiskZ) > zpht_up)
-        if zap.sum() > 0:
-            trhoG[zap] = 1e-18*trhoG[zap]
-        zap = (np.abs(tdiskZ) < zpht_low)
-        if zap.sum()>0:
-            trhoG[zap] = 1e-18*trhoG[zap]
+        #zap = (np.abs(tdiskZ) > zpht_up)
+        #if zap.sum() > 0:
+        #    trhoG[zap] = 1e-18*trhoG[zap]
+        #zap = (np.abs(tdiskZ) < zpht_low)
+        #if zap.sum()>0:
+        #    trhoG[zap] = 1e-18*trhoG[zap]
 
-        if np.size(self.Xco)<2:
-            #Inner and outer abundance boundaries
-            zap = (tr<=self.Rabund[0]) | (tr>=self.Rabund[1])
-            if zap.sum()>0:
-                trhoG[zap] = 1e-18*trhoG[zap]
+        #if np.size(self.Xco)<2:
+        #    #Inner and outer abundance boundaries
+        #    zap = (tr<=self.Rabund[0]) | (tr>=self.Rabund[1])
+        #    if zap.sum()>0:
+        #        trhoG[zap] = 1e-18*trhoG[zap]
 
         # freeze out
         zap = (tT <= Disk.Tco)
         if zap.sum() >0:
-            trhoG[zap] = 1e-8*trhoG[zap]
+            self.Xmol[zap] = 1e-8*self.Xmol[zap]
+            #trhoG[zap] = 1e-8*trhoG[zap]
+
+        trhoH2 = Disk.H2tog/Disk.m0*ndimage.map_coordinates(self.rho0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)
+        trhoG = trhoH2*self.Xmol 
+        trhoH2[notdisk] = 0
+        trhoG[notdisk] = 0
+        self.rhoH2 = trhoH2
 
         #print "zap {t}".format(t=time.clock()-tst)
         #temperature and turbulence broadening
@@ -551,16 +565,16 @@ class Disk:
         self.Y = Y
         self.Z = tdiskZ
         self.S = S
-        self.r = tr
+        #self.r = tr
         self.T = tT
         #self.dBV = tdBV
         self.rhoG = trhoG
         self.Omg = Omg#Omgy #need to combine omgx,y,z
         self.i_notdisk = notdisk
         self.i_xydisk = xydisk
-        self.rhoH2 = trhoH2 #*** not on cluster ***
-        self.sig_col=tsig_col
-        self.Xmol = Xmol
+        #self.rhoH2 = trhoH2 #*** not on cluster ***
+        #self.sig_col=tsig_col
+        #self.Xmol = Xmol
         self.cs = np.sqrt(2*self.kB/(self.Da*2)*self.T)
         #self.tempg = tempg
         #self.zpht = zpht
@@ -588,27 +602,6 @@ class Disk:
 
         self.dBV=tdBV
 
-    def add_dust(self,params): #*** not on cluster ***
-        '''Includes dust structure. Does this by calculating the dust mass distribution, assuming a dust to gas mass ratio distribution.'''
-        if self.rhoG is None:
-            print 'Dust cannot be added until gas structure calculation is complete.'
-            self.rhoD = 0
-        else:
-            self.dtg0 = params[0]
-            self.dtg1 = params[1]
-            self.RinD = params[2]*Disk.AU
-            self.RoutD = params[3]*Disk.AU
-            self.RringD = params[4]*Disk.AU
-            self.ppD = 0
-            self.kap = 2.3
-
-            dtg = self.dtg0*(self.r/(150*self.AU))**(-self.ppD)
-            w = (self.r>(self.RringD-10*Disk.AU)) & (self.r<(self.RringD+10*Disk.AU))
-            dtg[w] += self.dtg1
-            w = (self.r<self.RinD) | (self.r>self.RoutD)
-            if w.sum()>0:
-                dtg[w] = 0.
-            self.rhoD = self.rhoH2*dtg*2*Disk.mh
 
     def add_dust_ring(self,Rin,Rout,dtg,ppD,initialize=False):
         '''Add a ring of dust with a specified inner radius, outer radius, dust-to-gas ratio (defined at the midpoint) and slope of the dust-to-gas-ratio'''
@@ -621,6 +614,35 @@ class Disk:
         Rmid = (Rin+Rout)/2.*Disk.AU
         self.dtg[w] += dtg*(self.r[w]/Rmid)**(-ppD)
         self.rhoD = self.rhoH2*self.dtg*2*Disk.mh
+
+    def add_mol_ring(self,Rin,Rout,Sig0,Sig1,abund,initialize=False,just_frozen=False):
+        ''' Add a ring of fixed abundance, between Rin and Rout (in the radial direction) and Sig0 and Sig1 (in the vertical direction.
+        disk.add_mol_ring(10,100,.79,1000,1e-4)
+        just_frozen: only apply the abundance adjustment to the areas of the disk where CO is nominally frozen out.'''
+        if initialize:
+            self.Xmol = np.zeros(np.shape(self.r))+1e-18
+        if just_frozen:
+            add_mol = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU) & (self.T<self.Tco)
+        else:
+            add_mol = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
+        if add_mol.sum()>0:
+            self.Xmol[add_mol]+=abund
+        #add soft boundaries
+        edge1 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rout*Disk.AU)
+        if edge1.sum()>0:
+            self.Xmol[edge1] += abund*np.exp(-(self.r[edge1]/(Rout*Disk.AU))**16)
+        edge2 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r<Rin*Disk.AU)
+        if edge2.sum()>0:
+            self.Xmol[edge2] += abund*(1-np.exp(-(self.r[edge2]/(Rin*Disk.AU))**20.))
+        edge3 = (self.sig_col*Disk.Hnuctog/Disk.m0<Sig0*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
+        if edge3.sum()>0:
+            self.Xmol[edge3] += abund*(1-np.exp(-((self.sig_col[edge3]*Disk.Hnuctog/Disk.m0)/(Sig0*Disk.sc))**8.))
+        zap = (self.Xmol<0)
+        if zap.sum()>0:
+            self.Xmol[zap]=1e-18
+        if not initialize:
+            self.rhoG = self.rhoH2*self.Xmol
+        
        
 
     def calc_hydrostatic(self,tempg,siggas,grid):
