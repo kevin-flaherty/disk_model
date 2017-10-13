@@ -214,7 +214,9 @@ class Disk:
         xind     = np.interp(tr.flatten(),self.rf,range(self.nrc))             #rf,nrc
         yind     = np.interp(np.abs(tdiskZ).flatten(),self.zf,range(self.nzc)) #zf,nzc
         tT       = ndimage.map_coordinates(self.tempg,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
+        tsigmaD  = ndimage.map_coordinates(self.sigmaD,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)  #interpolate onto coordinates xind,yind #dustg
         tDD      = ndimage.map_coordinates(self.rhoD,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)  #interpolate onto coordinates xind,yind #dustg
+        tH       = ndimage.map_coordinates(self.H,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)  #interpolate onto coordinates xind,yind #dustg
         tsig_col = ndimage.map_coordinates(self.sig_col,[[xind],[yind]],order=2).reshape(self.nphi,self.nr,self.nz)
 
         tT[notdisk]=2.73
@@ -257,7 +259,9 @@ class Disk:
         self.i_notdisk = notdisk
         self.i_xydisk = xydisk
         self.cs = np.sqrt(2*self.kB/(self.Da*2)*self.T)
+        self.sigmaD = tsigmaD
         self.rhoD = tDD
+        self.H   = tH
 
     def set_line(self,line='co',vcs=True):
         if line.lower()[:2]=='co':
@@ -296,8 +300,28 @@ class Disk:
         
         #Finally, zero out density where the gap is located
         w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
-        Rmid = (Rin+Rout)/2.*Disk.AU
-        self.rhoD[w] = 0. 
+        self.rhoD[w] = 0.
+
+    def add_dust_mass(self, ring_mass, Rin, Rout):
+
+        '''Add dust mass in a ring with a specific inner and outer radius to
+           the disk.'''
+
+        #calculate how much mass would initially be located within the radii specified by the user,
+        #and add the ring mass to this initial mass
+        ring_mass *= self.Mearth
+        initial_mass = 2 * np.pi * self.dsigma_crit * (((Rout*Disk.AU)**(2 + self.pp)) - ((Rin*Disk.AU)**(2 + self.pp))) / (self.pp + 2.)
+        added_mass   = initial_mass + ring_mass
+
+        #calculate the normalization factor, added_mass / mass of the dust
+        norm_factor = added_mass / initial_mass
+
+        #multiply the dust within the specified radius 
+        w = (self.r>(Rin*Disk.AU)) & (self.r<(Rout*Disk.AU))
+
+        #re-calculate the dust volume density structure as a function ring radius
+        self.rhoD[w] *= norm_factor
+
 
     def add_dust_ring(self,Rin,Rout,dtg,ppD,initialize=True):
         '''Add a ring of dust with a specified inner radius, outer radius, dust-to-gas ratio (defined at the midpoint) and slope of the dust-to-gas-ratio'''
