@@ -267,7 +267,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
 
     # Do the calculation
     if flipme:
-        dchans = nchans/2.+0.5
+        dchans = int(nchans/2.+0.5)
     else:
         dchans = nchans
     
@@ -329,7 +329,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
         imt_s = ndimage.shift(imt_s,(pixshift[0],pixshift[1],0),mode='nearest')        
         hdut=fits.PrimaryHDU((imt_s/disk.AU).T,hdrt)
         #hdut=fits.PrimaryHDU((imt_s).T,hdrt)
-        hdut.writeto(modfile+'p_tau1.fits',clobber=True,output_verify='fix')
+        hdut.writeto(modfile+'p_tau1.fits',overwrite=True,output_verify='fix')
                     
     
     # - interpolate onto a square grid
@@ -368,7 +368,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
 
     # write processed model
     hdu = fits.PrimaryHDU(im_s.T,hdr)
-    hdu.writeto(modfile+'.fits',clobber=True,output_verify='fix')
+    hdu.writeto(modfile+'.fits',overwrite=True,output_verify='fix')
     
 
 

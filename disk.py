@@ -344,8 +344,8 @@ class Disk:
         self.dtg[w] += dtg*(self.r[w]/Rmid)**(-ppD)
         self.rhoD = self.rhoH2*self.dtg*2*Disk.mh
 
-    def add_mol_ring(self,Rin,Rout,Sig0,Sig1,abund,initialize=False,just_frozen=False):
-        '''Add a ring of fixed abundance, between Rin and Rout (in the radial direction) and Sig0 and Sig1 (in the vertical direction).
+    def add_mol_ring(self,Rin,Rout,Sig0,Sig1,abund,alpha=0,initialize=False,just_frozen=False):
+        '''Add a ring of fixed abundance, between Rin and Rout (in the radial direction) and Sig0 and Sig1 (in the vertical direction). The abundance is treated as a power law in the radial direction, with alpha as the power law exponent, and normalized at the inner edge of the ring (abund~abund0*(r/Rin)^(alpha))
         disk.add_mol_ring(10,100,.79,1000,1e-4)
         just_frozen: only apply the abundance adjustment to the areas of the disk where CO is nominally frozen out
         '''
@@ -356,17 +356,17 @@ class Disk:
         else:
             add_mol = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
         if add_mol.sum()>0:
-            self.Xmol[add_mol]+=abund
+            self.Xmol[add_mol]+=abund*(self.r[add_mol]/(Rin*Disk.AU))**(alpha)
         #add soft boundaries
         edge1 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r>Rout*Disk.AU)
         if edge1.sum()>0:
-            self.Xmol[edge1] += abund*np.exp(-(self.r[edge1]/(Rout*Disk.AU))**16)
+            self.Xmol[edge1] += abund*(self.r[edge1]/(Rin*Disk.AU))**(alpha)*np.exp(-(self.r[edge1]/(Rout*Disk.AU))**16)
         edge2 = (self.sig_col*Disk.Hnuctog/Disk.m0>Sig0*Disk.sc) & (self.sig_col*Disk.Hnuctog/Disk.m0<Sig1*Disk.sc) & (self.r<Rin*Disk.AU)
         if edge2.sum()>0:
-            self.Xmol[edge2] += abund*(1-np.exp(-(self.r[edge2]/(Rin*Disk.AU))**20.))
+            self.Xmol[edge2] += abund*(self.r[edge2]/(Rin*Disk.AU))**(alpha)*(1-np.exp(-(self.r[edge2]/(Rin*Disk.AU))**20.))
         edge3 = (self.sig_col*Disk.Hnuctog/Disk.m0<Sig0*Disk.sc) & (self.r>Rin*Disk.AU) & (self.r<Rout*Disk.AU)
         if edge3.sum()>0:
-            self.Xmol[edge3] += abund*(1-np.exp(-((self.sig_col[edge3]*Disk.Hnuctog/Disk.m0)/(Sig0*Disk.sc))**8.))
+            self.Xmol[edge3] += abund*(self.r[edge3]/(Rin*Disk.AU))**(alpha)*(1-np.exp(-((self.sig_col[edge3]*Disk.Hnuctog/Disk.m0)/(Sig0*Disk.sc))**8.))
         zap = (self.Xmol<0)
         if zap.sum()>0:
             self.Xmol[zap]=1e-18
