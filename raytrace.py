@@ -70,7 +70,16 @@ def gasmodel(disk,params,obs,moldat,tnl,wind=False,includeDust=False):
     SignuF1 = s0*c/(nu0*np.sqrt(np.pi)) # - absorbing cross section prefactor
     
     # - Calculate source function and absorbing coefficient
-    dV = veloc + (handed*np.sin(thet)*disk.Omg*disk.X[:,:,np.newaxis]*np.ones(nz))
+    try:
+        disk.ecc
+    except:
+        #Non-eccentric models define disk.Omg
+        dV = veloc + (handed*np.sin(thet)*disk.Omg*disk.X[:,:,np.newaxis]*np.ones(nz))
+    else:
+        #Eccentric models do not have disk.Omg, but use disk.vel instead
+        dV = veloc + handed*np.sin(thet)*(disk.vel)
+
+
     if wind:
         # add a 'wind'
         vwind = np.cos(thet)*0.0*disk.cs*sign(disk.Z)

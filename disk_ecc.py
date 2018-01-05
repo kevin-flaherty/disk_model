@@ -264,18 +264,22 @@ class Disk:
         #print "hydro done {t}".format(t=time.clock()-tst)
         #Calculate radial pressure differential
         ### nolonger use pressure term ###
-        Pgas = Disk.kB/Disk.m0*self.rho0*tempg
-        dPdr = (np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
+        #Pgas = Disk.kB/Disk.m0*self.rho0*tempg
+        #dPdr = (np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
         #print dPdr[:5,0,0],dPdr[200:205,0,500]
         #dPdr = 0#(np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
         
         
         #Calculate velocity field
-        Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
-        w = np.isnan(Omg)
-        if w.sum()>0:
-            Omg[w] = np.sqrt((Disk.G*self.Mstar/(rcf[w]**2+zcf[w]**2)**1.5))
+        #Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
+        #w = np.isnan(Omg)
+        #if w.sum()>0:
+        #    Omg[w] = np.sqrt((Disk.G*self.Mstar/(rcf[w]**2+zcf[w]**2)**1.5))
         
+        #https://pdfs.semanticscholar.org/75d1/c8533025d0a7c42d64a7fef87b0d96aba47e.pdf
+        #Lovis & Fischer 2010, Exoplanets edited by S. Seager (eq 11 assuming m2>>m1)
+        self.vel = np.sqrt(Disk.G*self.Mstar/(acf*(1-self.ecc**2.)))*(np.cos(self.aop+fcf)+self.ecc*self.cosaop)
+
         ###### Major change: vel is linear not angular ######
         #Omk = np.sqrt(Disk.G*self.Mstar/acf**3.)#/rcf
         #velrot = np.zeros((3,nac,nfc,nzc)) 
@@ -404,7 +408,7 @@ class Disk:
         self.zf = zf
         self.nzc = nzc
         self.tempg = tempg
-        self.Omg0 = Omg#velrot
+        #self.Omg0 = Omg#velrot
         self.zpht_up = zpht_up
         self.zpht_low = zpht_low
         self.pcf = pcf  #only used for plotting can remove after testing
@@ -494,7 +498,8 @@ class Disk:
         ###### fixed T,Omg,rhoG still need to work on zpht ######
         tT = ndimage.map_coordinates(self.tempg,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
         #Omgx = ndimage.map_coordinates(self.Omg0[0],[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #Omgs
-        Omg = ndimage.map_coordinates(self.Omg0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #Omgy
+        #Omg = ndimage.map_coordinates(self.Omg0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz) #Omgy
+        tvel = ndimage.map_coordinates(self.vel,[[aind],[phiind],[zind]],order=1).reshape(self.nphi,self.nr,self.nz)
         #Omgz = np.zeros(np.shape(Omgy))
         #trhoG = Disk.H2tog*self.Xmol/Disk.m0*ndimage.map_coordinates(self.rho0,[[aind],[phiind],[zind]],order=1,cval=1e-18).reshape(self.nphi,self.nr,self.nz)
         #trhoH2 = trhoG/self.Xmol #** not on cluster**
@@ -569,7 +574,8 @@ class Disk:
         self.T = tT
         #self.dBV = tdBV
         self.rhoG = trhoG
-        self.Omg = Omg#Omgy #need to combine omgx,y,z
+        #self.Omg = Omg#Omgy #need to combine omgx,y,z
+        self.vel = tvel
         self.i_notdisk = notdisk
         self.i_xydisk = xydisk
         #self.rhoH2 = trhoH2 #*** not on cluster ***
