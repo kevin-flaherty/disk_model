@@ -210,7 +210,7 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
                 vsys=5.74#5.76 from grid_search
                 chanstep = np.abs(obsv[1]-obsv[0])#-0.208337
                 nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
-                chanmin = -(nchans/2-.5)*chanstep
+                chanmin = -(nchans/2.-.5)*chanstep
                 offs = [-0.03,0.02]
                 resolution = 0.05
                 #chain=np.recfromtxt('CO_highres_cen_weights.dat')
@@ -230,7 +230,7 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
                 vsys=5.743#5.79#5.743 from grid_search
                 chanstep = np.abs(obsv[1]-obsv[0])#-0.208337
                 nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
-                chanmin = -(nchans/2-.5)*chanstep
+                chanmin = -(nchans/2.-.5)*chanstep
                 offs = [-.03,0.02]#[-.06,.02] from grid_search with .04 steps
                 resolution = 0.05
                 obs = [250,101,350,150] #rt grid nr,nphi,nz,zmax
@@ -257,7 +257,7 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
                 vsys = 6.948
                 chanstep = np.abs(obsv[1]-obsv[0])
                 nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
-                chanmin = -(nchans/2-.5)*chanstep
+                chanmin = -(nchans/2.-.5)*chanstep
                 offs = [0.,0.]
                 resolution = 0.05
                 obs = [150,101,300,150]
@@ -272,7 +272,7 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
                 vsys = 6.948#5.79
                 chanstep = np.abs(obsv[1]-obsv[0])
                 nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
-                chanmin = -(nchans/2-.5)*chanstep
+                chanmin = -(nchans/2.-.5)*chanstep
                 offs=[.045,-.03]
                 resolution = 0.05
                 obs = [150,101,300,150]
