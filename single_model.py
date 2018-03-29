@@ -7,6 +7,7 @@ from raytrace import *
 from scipy.optimize import curve_fit
 import scipy.interpolate
 from scipy.integrate import cumtrapz,trapz
+from galario.double import sampleImage
 
 
 ##############################################################################
@@ -17,7 +18,7 @@ def make_model_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='testpy_
         cmd = ' ./sample_cont.csh '+modfile+' '+datfile+' '+str(freq0)
     os.system(cmd)
 
-def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/testpy_alma',new_weight=None,systematic=False,isgas=True,plot_resid=False):
+def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/testpy_alma',new_weight=[1,],systematic=False,isgas=True,plot_resid=False):
     '''Calculate the raw chi-squared based on the difference between the model and data visibilities.
 
     :param datfile: (default = 'data/HD163296.CO32.regridded.cen15')
@@ -94,7 +95,7 @@ def compare_vis(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/test
         real_model = real_model/systematic
         imag_model = imag_model/systematic
         
-    if new_weight != None:
+    if len(new_weight) > 1:
         #weight_alma = new_weight
         weight_real = new_weight
         weight_imag = new_weight
@@ -146,10 +147,112 @@ def gaussian(x,amp,width,center):
 #def laplace(x,amp,width,center):
 #    return amp/(2*width)*np.exp(-np.abs(x-center)/width)
 
+def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='model/testpy_alma',new_weight=[1,],systematic=False,isgas=True,plot_resid=False):
+    '''Calculate the raw chi-squared based on the difference between the model and data visibilities.
+
+    :param datfile: (default = 'data/HD163296.CO32.regridded.cen15')
+     The base name for the data file. The code reads in the visibilities from datfile+'.vis.fits'
+
+     :param modfile" (default='model/testpy_alma')
+     The base name for the model file. The code reads in the visibilities from modfile+'.model.vis.fits'
+
+     :param new_weight:
+     An array containing the weights to be used in the chi-squared calculation. This should have the same dimensions as the real and imaginary part of the visibilities (ie Nbas x Nchan)
+
+     :param systematic:
+     The systematic weight to be applied. The value sent with this keyword is used to scale the absolute flux level of the model. It is defined such that a value >1 decreases the model and a value <1 increases the model (the model visibilities are divided by the systematic parameter). It is meant to mimic a true flux in the data which is larger or smaller by the fraction systematic (e.g. specifying systematic=1.2 is equivalent to saying that the true flux of the data is 20% brighter than what has been observed, with this scaling applied to the model instead of changing the data)
+
+     :param isgas:
+     If the data is line emission then the data has an extra dimension covering the >1 channels. Set this keyword to ensure that the data is read in properly. Conversely, if you are comparing continuum data then set this keyword to False.
+
+'''
+
+    # - Read in object visibilities
+    obj = fits.open(datfile+'.vis.fits')
+    freq0 = obj[0].header['crval4']
+    u_obj,v_obj = (obj[0].data['UU']*freq0).astype(np.float64),(obj[0].data['VV']*freq0).astype(np.float64)
+    vis_obj = (obj[0].data['data']).squeeze()
+    if isgas:
+        if obj[0].header['telescop'] == 'ALMA':
+            if obj[0].header['naxis3'] == 2:
+                real_obj = (vis_obj[:,:,0,0]+vis_obj[:,:,1,0])/2.
+                imag_obj = (vis_obj[:,:,0,1]+vis_obj[:,:,1,1])/2.
+                weight_real = vis_obj[:,:,0,2]
+                weight_imag = vis_obj[:,:,1,2]
+            else:
+                real_obj = vis_obj[::2,:,0]
+                imag_obj = vis_obj[::2,:,1]
+    else:
+        if obj[0].header['telescop'] == 'ALMA':
+            if obj[0].header['naxis3'] == 2:
+                real_obj = (vis_obj[:,0,0]+vis_obj[:,1,0])/2.
+                imag_obj = (vis_obj[:,0,1]+vis_obj[:,1,1])/2.
+                weight_real = vis_obj[:,0,2]
+                weight_imag = vis_obj[:,1,2]
+
+    obj.close()
+
+    #Generate model visibilities
+    model_fits = fits.open(modfile+'.fits')
+    model = model_fits[0].data.squeeze()
+    nxy,dxy = model_fits[0].header['naxis1'],np.radians(np.abs(model_fits[0].header['cdelt1']))
+    model_fits.close()
+    if isgas:
+        real_model = np.zeros(real_obj.shape)
+        imag_model = np.zeros(imag_obj.shape)
+        for i in range(real_obj.shape[1]):
+            vis = sampleImage(np.flipud(model[i,:,:]).byteswap().newbyteorder(),dxy,u_obj,v_obj)
+            real_model[:,i] = vis.real
+            imag_model[:,i] = vis.imag
+    else:
+        vis = sampleImage(model.byteswap().newbyteorder(),dxy,u_obj,v_obj)
+        real_model = vis.real
+        imag_model = vis.imag
+
+    if systematic:
+        real_model = real_model/systematic
+        imag_model = imag_model/systematic
+
+    if len(new_weight) > 1:
+        weight_real = new_weight
+        weight_imag = new_weight
+
+    weight_real[real_obj==0] = 0.
+    weight_imag[imag_obj==0] = 0.
+    print 'Removed data %i' % ((weight_real ==0).sum()+(weight_imag==0).sum())
+
+    if plot_resid:
+        #Code to plot, and fit, residuals
+        #If errors are Gaussian, then residuals should have gaussian shape
+        #If error size is correct, residuals will have std=1
+        uv = np.sqrt(u_obj**2+v_obj**2)
+        use = (weight_real > .05) & (weight_imag>.05)
+        diff = np.concatenate((((real_model[use]-real_obj[use])*np.sqrt(weight_real[use])),((imag_model[use]-imag_obj[use])*np.sqrt(weight_imag[use]))))
+        diff = diff.flatten()
+        n,bins,patches = plt.hist(diff,10000,normed=1,histtype='step',color='k',label='Data',lw=3)
+        popt,pcov = curve_fit(gaussian,bins[1:],n)
+        y=gaussian(bins,popt[0],popt[1],popt[2])
+        print 'Gaussian fit parameters (amp,width,center): ',popt
+        print 'If errors are properly scaled, then width should be close to 1'
+        plt.plot(bins,y,'r--',lw=6,label='gaussuian')
+        #slight deviations from gaussian, but gaussian is still the best...
+        plt.xlabel('(Model-Data)/$\sigma$',fontweight='bold',fontsize=20)
+        ax=plt.gca()
+        for tick in ax.xaxis.get_major_ticks():
+            tick.label1.set_fontsize(20)
+            tick.label1.set_fontweight('bold')
+        for tick in ax.yaxis.get_major_ticks():
+            tick.label1.set_fontsize(20)
+            tick.label1.set_fontweight('bold')
+
+        plt.show()
+  
 
 
+    chi = ((real_model-real_obj)**2*weight_real).sum() + ((imag_model-imag_obj)**2*weight_imag).sum()
+    return chi
 
-def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='co21',vcs=True,exp_temp=False,add_ring=False):
+def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='co21',vcs=True,exp_temp=False,add_ring=False,use_galario=False):
     '''Calculate the log-likelihood (=-0.5*chi-squared) for a given model. p=[q,log(mdisk),log(rc),log(vturb/cco),Zq,Tatm,pp,Tmid,incl,gain]'''
     import tempfile
     import time
@@ -229,7 +332,7 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
                 obsv = (hdr['restfreq']-freq)/hdr['restfreq']*2.99e5
                 vsys=5.743#5.79#5.743 from grid_search
                 chanstep = np.abs(obsv[1]-obsv[0])#-0.208337
-                nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
+                nchans = int(2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1)
                 chanmin = -(nchans/2.-.5)*chanstep
                 offs = [-.03,0.02]#[-.06,.02] from grid_search with .04 steps
                 resolution = 0.05
@@ -246,7 +349,8 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
             disk_structure.set_rt_grid(vcs=vcs)
             disk_structure.set_line(line)
             total_model(disk=disk_structure,chanmin=chanmin,nchans=nchans,chanstep=chanstep,offs=offs,modfile=modfile,imres=resolution,obsv=obsv,vsys=vsys,freq0=230.538,Jnum=1)
-            make_model_vis(datfile=datfile,modfile=modfile,isgas=True,freq0=230.538)
+            if not use_galario:
+                make_model_vis(datfile=datfile,modfile=modfile,isgas=True,freq0=230.538)
         if line.lower() == 'co32':
             if highres:
                 datfile = 'HD163296.CO32.new'
@@ -261,7 +365,7 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
                 offs = [0.,0.]
                 resolution = 0.05
                 obs = [150,101,300,150]
-                w = readsav('/home/kflaherty/Turbulence/HD163296/simple_gas_py/data/highres_ALMA_weights_calc.sav')
+                w = readsav('~/Turbulence/HD163296/simple_gas_py/data/highres_ALMA_weights_calc.sav')
                 new_weight = w['weight_alma']
             else:
                 datfile = 'HD163296.CO32.regridded.cen15'
@@ -271,17 +375,18 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
                 obsv = (345.79599e9-freq)/(345.79599e9)*2.99e5
                 vsys = 6.948#5.79
                 chanstep = np.abs(obsv[1]-obsv[0])
-                nchans = 2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1
+                nchans = int(2*np.ceil(np.abs(obsv-vsys).max()/chanstep)+1)
                 chanmin = -(nchans/2.-.5)*chanstep
                 offs=[.045,-.03]
                 resolution = 0.05
                 obs = [150,101,300,150]
-                w = readsav('/home/kflaherty/Turbulence/HD163296/simple_gas_py/data/lowres_ALMA_weights_calc.sav')
+                w = readsav('lowres_ALMA_weights_calc.sav')
                 new_weight = w['weight_alma']
             disk_structure.set_obs(obs)
             disk_structure.set_rt_grid(vcs = vcs)
             total_model(disk=disk_structure,chanmin=chanmin,nchans=nchans,chanstep=chanstep,offs=offs,modfile=modfile,freq0=345.79599,Jnum=2,imres=resolution,vsys=vsys,obsv=obsv)
-            make_model_vis(datfile=datfile,modfile=modfile,isgas=True,freq0=345.79599)
+            if not use_galario:
+                make_model_vis(datfile=datfile,modfile=modfile,isgas=True,freq0=345.79599)
 
 
         if systematic:
@@ -289,7 +394,10 @@ def lnlike(p,highres=False,massprior=False,cleanup=False,systematic=False,line='
         else:
             sys = None
 
-        chi = compare_vis(datfile=datfile,modfile=modfile,systematic=sys,new_weight=new_weight)
+        if not use_galario:
+            chi = compare_vis(datfile=datfile,modfile=modfile,systematic=sys,new_weight=new_weight)
+        else:
+            chi = compare_vis_galario(datfile=datfile,modfile=modfile,systematic=sys,new_weight=new_weight)
 
         if cleanup:
             # Clean up files

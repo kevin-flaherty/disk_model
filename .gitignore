@@ -11,6 +11,7 @@ aumic_model.py
 .nfs*
 diskG.py*
 single_modelG.py*
+*.sav
 
 
 
