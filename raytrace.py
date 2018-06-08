@@ -152,7 +152,7 @@ def dustmodel(disk,nu):
 
     return trapz(arg,S,axis=2),tau
 
-def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0.32,flipme=True,Jnum=2,freq0=345.79599,xnpix=512,vsys=5.79,PA=312.46,offs=[0.150,0.05],modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=None):
+def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0.32,flipme=True,Jnum=2,freq0=345.79599,xnpix=512,vsys=5.79,PA=312.46,offs=[0.150,0.05],modfile='testpy_alma',abund=1.,obsv=None,wind=False,isgas=True,includeDust=False,extra=None,bin=1,hanning=False):
     '''Run all of the model calculations given a disk object.
     Outputs are a fits file with the model images, along with visibility files (one in miriad format and one in fits format) for this model
 
@@ -223,6 +223,13 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     :param extra:
     A parameter to control what extra plots/data are output. The options are 1 (figure showing the disk structure with the tau=1 surface marked with a dashed line), 2.1(a list of the heights as a function of radius between which 50% of the flux arises), 2.2(a list of temperatures as a function of radius between which 50% of the flux arises), 3.0(channel maps showing height of tau=1 surface), 3.1(channel maps showing the temperature at the tau=1 surface), 3.2 (channel maps showing the maximum optical depth)
 
+
+    :param bin: (default=1)
+    If you are comparing to data that has been binned from the native resolution, then you can include that binning in the models. e.g. If the data have been binned down by a factor of two, then set bin=2. This ensures that the model goes through similar processing as the data. Note that bin only accepts integer values.
+
+    :param hanning: (default=False)
+    Set to True to perform hanning smoothing on a spectrum. Hanning smoothing is designed to reduce Gibbs ringing, which is associated with the finite time sampling that is used in the generation of a spectrum within an interferometer. Hanning smoothing is included as a running average that replaces the flux in channel i with 25% of the flux in channel i-1, 50% of the flux in channel i, and 25% of the flux in channel i+1. 
+
 '''
 
     params = disk.get_params()
@@ -232,6 +239,13 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
         obs.append(x)
     obs.append(0.)
 
+    #If accounting for binning then decrease the channel width, and increase the number of channels
+    if not isinstance(bin,int):
+        print 'bin must be an integer. Setting bin=1'
+        bin = 1
+    nchans *= bin
+    chanstep/=bin
+    
     if nchans==1:
         flipme=False
 
@@ -348,15 +362,28 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     # - interpolate onto velocity grid of observed star
         velo = chans+vsys
         if obsv is not None:
-            im2 = np.zeros((xnpix,xnpix,len(obsv)))
+            obsv2 = np.arange(len(obsv)*bin)*np.abs(obsv[1]-obsv[0])/bin+np.min(obsv)
+            im2 = np.zeros((xnpix,xnpix,len(obsv2)))
             for ix in range(xnpix):
                 for iy in range(xnpix):
                     if velo[1]-velo[0] < 0:
-                        im2[ix,iy,:] = np.interp(obsv,velo[::-1],im[ix,iy,::-1])
+                        im2[ix,iy,:] = np.interp(obsv2,velo[::-1],im[ix,iy,::-1])
                     else:
-                        im2[ix,iy,:] = np.interp(obsv,velo,im[ix,iy,:])
+                        im2[ix,iy,:] = np.interp(obsv2,velo,im[ix,iy,:])
         else:
             im2=im
+
+    if hanning:
+        im2 = perform_hanning(im2)
+
+    if bin>1:
+        new_im = np.zeros((im2.shape[0],im2.shape[1],im2.shape[2]/bin))
+        for k in range(new_im.shape[2]):
+            new_im[:,:,k] = np.mean(im2[:,:,k*bin:k*bin+bin],axis=2)
+        im2 = new_im
+        nchans/=bin
+        chanstep*=bin
+        chans = chanmin+np.arange(nchans)*chanstep
         
     
     # - make header
@@ -379,7 +406,24 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     hdu = fits.PrimaryHDU(im_s.T,hdr)
     hdu.writeto(modfile+'.fits',overwrite=True,output_verify='fix')
     
+def perform_hanning(cube):
+    '''Apply hanning smoothing over an image.'''
 
+    if len(cube.shape)==3:
+        test_cube = np.zeros(cube.shape)
+        for k in range(1,cube.shape[2]-1):
+            test_cube[:,:,k] = .25*cube[:,:,k-1]+.5*cube[:,:,k]+.25*cube[:,:,k+1]
+        test_cube[:,:,0] = .625*cube[:,:,0]+.275*cube[:,:,1]
+        test_cube[:,:,-1] = .625*cube[:,:,-1]+.275*cube[:,:,-2]
+    if len(cube.shape)==4:
+        test_cube = np.zeros(cube.shape)
+        for k in range(1,cube.shape[3]-1):
+            test_cube[:,:,:,k] = .25*cube[:,:,:,k-1]+.5*cube[:,:,:,k]+.25*cube[:,:,:,k+1]
+        test_cube[:,:,:,0] = .625*cube[:,:,:,0]+.275*cube[:,:,:,1]
+        test_cube[:,:,:,-1] = .625*cube[:,:,:,-1]+.275*cube[:,:,:,-2]
+
+    return test_cube
+    
 
 def write_h(nchans,dd,xnpix,xpixscale,lstep,vsys):
     'Create a header for the output image'
