@@ -29,7 +29,7 @@ class Disk:
     c       = const.c.cgs.value        # - speed of light (cm/s)
     h       = const.h.cgs.value        # - Planck's constant (erg/s)
     kB      = const.k_B.cgs.value      # - Boltzmann's constant (erg/K)
-    sigmaB  = const.sigma_sb.cgs.value # - Stefan-Boltzmann constant (erg cm^-2 s^-1 K^-4)
+    sigmaB  = const.sigma_sb.cgs.value # - Stefan-Boltzmann constant (erg cm^-2 s^-1 K^-4) #only difference in defined constants 
     pc      = const.pc.cgs.value       # - parsec (cm)
     Jy      = 1.e23                    # - cgs flux density (Janskys)
     Lsun    = const.L_sun.cgs.value    # - luminosity of the sun (ergs)
@@ -51,9 +51,12 @@ class Disk:
     Tco     = 19.                      # - freeze out
     sigphot = 0.79*sc                  # - photo-dissociation column
     
-    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,
-    	         [.79,1000],[10.,1000],-1, 500, 500, 0.09, 0.1],obs=[180,131,300,170],rtg=True,
-                 vcs=True,sh_relation='linear',line='co',ring=None):
+    
+    
+    
+    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,[69.3, 2],
+    	         500,500,500, 0.09, 0.1],obs=[180,131,300,170],rtg=True,
+                 vcs=True,sh_relation='linear',line='co',ring=None): # 11th and 13th parameters seem extraneous; constant vertical structure in Evan's code
 
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
@@ -77,7 +80,7 @@ class Disk:
         self.Xco      = params[8]               # - CO gas fraction
         self.vturb    = params[9]*Disk.kms      # - turbulence velocity
         self.zq0      = params[10]              # - Zq, in AU, at 150 AU
-        self.sigbound = [params[11][0]*Disk.sc,params[11][1]*Disk.sc]          
+        #self.ecc     = params[11]              # - eccentricity
         
         # - upper and lower column density boundaries
         if len(params[12]) == 2:
@@ -123,7 +126,7 @@ class Disk:
 
         idr  = np.ones(nrc)
         zcf  = np.outer(idr,zf)
-        rcf  = rf[:,np.newaxis]*np.ones(nzc)
+        rcf  = rf[:,np.newaxis]*np.ones(nzc) #rcf and zcf do the matrix transformations of radial and vertical coordinates
 
         # Interpolate dust temperature and density onto cylindrical grid
         tf  = 0.5*np.pi-np.arctan(zcf/rcf)  # theta values
@@ -140,10 +143,10 @@ class Disk:
         self.set_scale_height(sh_relation, rcf)
 
         #calculate the dust critical surface density
-        dsigma_crit = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Rout**(2. + self.pp) - self.Rin**(2. + self.pp)))
+        dsigma_crit = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Rout**(2. + self.pp) - self.Rin**(2. + self.pp))) #different from a protoplanetary disk
 
         #calculate the dust surface density structure
-        self.sigmaD = dsigma_crit * (rcf**self.pp)
+        self.sigmaD = dsigma_crit * (rcf**self.pp) #we are finding the surface density of the disk (see Evan's notes)
 
         #calculate the dust volume density structure as a function of radius
         rhoD = self.sigmaD / (self.H * np.sqrt(np.pi)) * np.exp(-1. * (zcf / self.H)**2)
@@ -224,7 +227,7 @@ class Disk:
         self.sig_col = tsig_col
 
         #Set molecular abundance
-        self.add_mol_ring(self.Rabund[0]/Disk.AU,self.Rabund[1]/Disk.AU,self.sigbound[0]/Disk.sc,self.sigbound[1]/Disk.sc,self.Xco,initialize=True)
+        #self.add_mol_ring(self.Rabund[0]/Disk.AU,self.Rabund[1]/Disk.AU,self.sigbound[0]/Disk.sc,self.sigbound[1]/Disk.sc,self.Xco,initialize=True)
 
         if np.size(self.Xco)>1:
             #gaussian rings
@@ -232,8 +235,8 @@ class Disk:
 
         #Freeze-out
         zap = (tT<self.Tco)
-        if zap.sum() > 0:
-            self.Xmol[zap] = 1/5.*self.Xmol[zap]
+        #if zap.sum() > 0:
+            #self.Xmol[zap] = 1/5.*self.Xmol[zap]
 
         self.add_dust_ring(self.Rin,self.Rout,0.,0.,initialize=True) #initialize dust density to 0
 
@@ -414,3 +417,5 @@ class Disk:
         obs.append(self.nz)
         obs.append(self.zmax/Disk.AU)
         return obs
+
+    
