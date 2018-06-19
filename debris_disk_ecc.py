@@ -61,7 +61,7 @@ class Disk:
     def set_params(self,params):
         'Set the disk structure parameters'
         self.qq = params[0]                 # - temperature index
-        self.McoG = params[1]*Disk.Msun     # - gas mass
+        self.Mdust = params[1]*Disk.Msun    # - dust mass
         self.pp = params[2]                 # - surface density index
         self.Ain = params[3]*Disk.AU        # - inner edge in cm
         self.Aout = params[4]*Disk.AU       # - outer edge in cm
@@ -178,6 +178,8 @@ class Disk:
         ###### this step is slow!!! ###### 
         #print "temp struct {t}".format(t=time.clock()-tst)
         
+        "Lines 183 - 207 are where you change the density structure. This needs to be changed from gas to dust."
+        
         # Calculate vertical density structure
         # nolonger use exponential tail
         ## Circular:
@@ -191,8 +193,8 @@ class Disk:
         #siggas = (self.McoG*np.sqrt(1.-e*e))/((rp1-rm1)*np.pi*(1.+e*np.cos(fcf[:,:,0]))*np.power(acf[:,:,0],self.pp+1.)*asum)
         #siggas[0,:] = (self.McoG*np.sqrt(1.-e*e))/((rf[1,:]-rf[0,:])*2.*np.pi*(1.+e*np.cos(ff))*np.power(af[0]*idf,self.pp+1.)*asum)
         #siggas[nac-1,:] = (self.McoG*np.sqrt(1.-e*e))/((rf[nac-1,:]-rf[nac-2,:])*2.*np.pi*(1.+e*np.cos(ff))*np.power(af[nac-1]*idf,self.pp+1.)*asum)
-        Sc = self.McoG*(2.-self.pp)/(self.Rc*self.Rc) 
-        siggas_r = Sc*(acf[:,:,0]/self.Rc)**(-1*self.pp)*np.exp(-1*(acf[:,:,0]/self.Rc)**(2-self.pp)) 
+        Sc = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Rout**(2. + self.pp) - self.Rin**(2. + self.pp))) 
+        siggas_r = Sc * (rcf ** self.pp)
         #Sc = self.McoG*(2.-self.pp)/((amax**(2-self.pp)-amin**(2-self.pp)))
         #siggas_r = Sc*acf[:,:,0]**(-1*self.pp)
         dsdth = (acf[:,:,0]*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e))/(1+e*np.cos(fcf[:,:,0]))**2
