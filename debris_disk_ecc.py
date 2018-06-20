@@ -66,8 +66,8 @@ class Disk:
         self.qq = params[0]                 # - temperature index
         self.Mdust = params[1]*Disk.Msun    # - dust mass
         self.pp = params[2]                 # - surface density index
-        self.Ain = params[3]*Disk.AU        # - inner edge in cm
-        self.Aout = params[4]*Disk.AU       # - outer edge in cm
+        self.Rin  = params[3]*Disk.AU       # - inner edge in cm
+        self.Rout = params[4]*Disk.AU       # - outer edge in cm     
         self.Rc = params[5]*Disk.AU         # - critical radius in cm
         self.thet = math.radians(params[6]) # - convert inclination to radians
         self.Mstar = params[7]*Disk.Msun    # - convert mass of star to g
