@@ -18,7 +18,14 @@ import matplotlib.pyplot as plt
 import scipy.signal
 from scipy import ndimage
 from astropy import constants as const
+from numba import jitclass          # import the decorator
+from numba import int32, float32    # import the types
 
+spec = [
+    ('value', int32),               # a simple scalar field
+    ('array', float32[:]),          # an array field
+]
+    
 class Disk:
     
     'Common class for circumstellar disk structure'
@@ -29,7 +36,7 @@ class Disk:
     c       = const.c.cgs.value        # - speed of light (cm/s)
     h       = const.h.cgs.value        # - Planck's constant (erg/s)
     kB      = const.k_B.cgs.value      # - Boltzmann's constant (erg/K)
-    sigmaB  = const.sigma_sb.cgs.value # - Stefan-Boltzmann constant (erg cm^-2 s^-1 K^-4) #only difference in defined constants 
+    sigmaB  = const.sigma_sb.cgs.value # - Stefan-Boltzmann constant (erg cm^-2 s^-1 K^-4)
     pc      = const.pc.cgs.value       # - parsec (cm)
     Jy      = 1.e23                    # - cgs flux density (Janskys)
     Lsun    = const.L_sun.cgs.value    # - luminosity of the sun (ergs)
@@ -52,13 +59,14 @@ class Disk:
     sigphot = 0.79*sc                  # - photo-dissociation column
     
     
-    
-    
-    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,[69.3, 2],
-    	         500,500,500, 0.09, 0.1],obs=[180,131,300,170],rtg=True,
-                 vcs=True,sh_relation='linear',line='co',ring=None): # 11th and 13th parameters seem extraneous; constant vertical structure in Evan's code
+    def __init__(self,
+        params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3, [.79,1000],[10.,1000], -1, 500, 500, 0.09, 0.1],
+        obs=[180,131,300,170],
+        rtg=True,
+        vcs=True,sh_relation='linear',line='co',ring=None, annulus=None):
 
         self.ring=ring
+        self.annulus = annulus
         self.set_obs(obs)   # set the observational parameters
         self.set_params(params) # set the structure parameters
 
@@ -80,7 +88,7 @@ class Disk:
         self.Xco      = params[8]               # - CO gas fraction
         self.vturb    = params[9]*Disk.kms      # - turbulence velocity
         self.zq0      = params[10]              # - Zq, in AU, at 150 AU
-        #self.ecc     = params[11]              # - eccentricity
+        self.sigbound = [params[11][0]*Disk.sc,params[11][1]*Disk.sc]          
         
         # - upper and lower column density boundaries
         if len(params[12]) == 2:
@@ -93,16 +101,22 @@ class Disk:
         self.handed  = params[13]         # - NEED COMMENT HERE 
         self.costhet = np.cos(self.thet)  # - cos(i)
         self.sinthet = np.sin(self.thet)  # - sin(i)
-        if self.ring is not None:
-            self.Rring       = self.ring[0]*Disk.AU # location of the ring
-            self.Wring       = self.ring[1]*Disk.AU # width of ring
-            self.sig_enhance = self.ring[2]         # power law slope of inner temperature structure
-
+            
         #set number of model grid elements in radial and vertical direction
         self.r_gridsize = params[14]
         self.z_gridsize = params[15]
         self.Lstar      = params[16]
         self.sh_param   = params[17]
+        
+        if self.ring is not None:
+            self.Rring       = self.ring[0]*Disk.AU # location of the ring
+            self.Wring       = self.ring[1]*Disk.AU # width of ring
+            self.sig_enhance = self.ring[2]         # power law slope of inner temperature structure
+
+        if self.annulus is not None:
+            self.annulus_Rin = self.annulus[0]*Disk.AU # location of the dust annulus
+            self.annulus_Rout = self.annulus[1]*Disk.AU #width of annulus
+            self.annulus_mass = self.annulus[2]*Disk.Mearth #total added mass
         
     def set_obs(self,obs):
         'Set the observational parameters. These parameters are the number of r, phi, S grid points in the radiative transer grid, along with the maximum height of the grid.'
@@ -117,24 +131,34 @@ class Disk:
         # Define the desired regular cylindrical (r,z) grid
         nrc  = self.r_gridsize  # - number of unique r points
         nzc  = self.z_gridsize  # - number of unique z points
-        rmin = self.Rin         # - minimum r [AU]
-
-        rmax = self.Rout        # - maximum r [AU]
+        
+        rmin = self.Rin if self.annulus is None \
+            else np.min([self.Rin, self.annulus_Rin]) # - minimum r [AU]
+        rmax = self.Rout if self.annulus is None  \
+            else np.max([self.Rout, self.annulus_Rout]) # - maximum r [AU]      
         zmin = .1*Disk.AU       # - minimum z [AU] *****0.1?
+        
+        # import numpy as np
+        # import pandas as pd
+        # x = pd.Series(np.logspace(np.log10(10),np.log10(42),1000))#.loc[lambda x: (x > 14.9) & (x < 15)]
+        # r.diff()
+        # r = pd.Series(np.linspace(10,42,500)).loc[lambda x: (x > 15) & (x < 15.5)]
+        # x.diff()
+        
         rf   = np.logspace(np.log10(rmin),np.log10(rmax),nrc)
         zf   = np.logspace(np.log10(zmin),np.log10(self.zmax),nzc)
 
         idr  = np.ones(nrc)
         zcf  = np.outer(idr,zf)
-        rcf  = rf[:,np.newaxis]*np.ones(nzc) #rcf and zcf do the matrix transformations of radial and vertical coordinates
+        rcf  = rf[:,np.newaxis]*np.ones(nzc)
 
         # Interpolate dust temperature and density onto cylindrical grid
         tf  = 0.5*np.pi-np.arctan(zcf/rcf)  # theta values
         rrf = np.sqrt(rcf**2.+zcf**2)
 
         # bundle the grid for helper functions
-        grid = {'nrc':nrc,'nzc':nzc,'rf':rf,'rmax':rmax,'zcf':zcf}
-        self.grid=grid
+        # grid = {'nrc':nrc,'nzc':nzc,'rf':rf,'rmax':rmax,'zcf':zcf}
+        # self.grid=grid
 
         #define temperature structure
         tempg = (self.Lstar * self.Lsun / (16. * np.pi * rcf**2 * self.sigmaB))**0.25
@@ -143,11 +167,20 @@ class Disk:
         self.set_scale_height(sh_relation, rcf)
 
         #calculate the dust critical surface density
-        dsigma_crit = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Rout**(2. + self.pp) - self.Rin**(2. + self.pp))) #different from a protoplanetary disk
+        dsigma_crit = self.Mdust * (self.pp + 2.) / (2. * np.pi * (self.Rout**(2. + self.pp) - self.Rin**(2. + self.pp)))
 
         #calculate the dust surface density structure
-        self.sigmaD = dsigma_crit * (rcf**self.pp) #we are finding the surface density of the disk (see Evan's notes)
-
+        self.sigmaD = np.full(rcf.shape, 1e-60)
+        w = ((rcf > self.Rin) & (rcf < self.Rout))
+        self.sigmaD[w] = dsigma_crit * (rcf[w]**self.pp)
+        
+        #adjust surface density to account for annulus
+        if self.annulus is not None:
+            w = ((rcf > self.annulus_Rin) & (rcf < self.annulus_Rout))
+            annulus_sigma = self.annulus_mass / \
+                (np.pi * (self.annulus_Rout**2 - self.annulus_Rin**2))
+            self.sigmaD[w] += annulus_sigma
+            
         #calculate the dust volume density structure as a function of radius
         rhoD = self.sigmaD / (self.H * np.sqrt(np.pi)) * np.exp(-1. * (zcf / self.H)**2)
         
@@ -178,15 +211,20 @@ class Disk:
     def set_rt_grid(self,vcs=True):
         ### Start of Radiative Transfer portion of the code...
         # Define and initialize cylindrical grid
+        rmin = self.Rin if self.annulus is None \
+            else np.min([self.Rin, self.annulus_Rin]) # - minimum r [AU]
+        rmax = self.Rout if self.annulus is None  \
+            else np.max([self.Rout, self.annulus_Rout]) # - maximum r [AU]      
+        
         Smin = 1*Disk.AU                 # offset from zero to log scale
-        if self.thet > np.arctan(self.Rout/self.zmax):
-            Smax = 2*self.Rout/self.sinthet
+        if self.thet > np.arctan(rmax/self.zmax):
+            Smax = 2*rmax/self.sinthet
         else:
             Smax = 2.*self.zmax/self.costhet       # los distance through disk
         Smid = Smax/2.                    # halfway along los
         ytop = Smax*self.sinthet/2.       # y origin offset for observer xy center
 
-        R   = np.linspace(0,self.Rout,self.nr) 
+        R   = np.linspace(0,rmax,self.nr) 
         phi = np.arange(self.nphi)*2*np.pi/(self.nphi-1)
         foo = np.floor(self.nz/2)
         
@@ -207,15 +245,26 @@ class Disk:
 
         # transform grid
         tr      = np.sqrt(X.repeat(self.nz).reshape(self.nphi,self.nr,self.nz)**2+tdiskY**2)
-        notdisk = (tr > self.Rout) | (tr < self.Rin)         # - individual grid elements not in disk
-        xydisk  =  tr[:,:,0] <= self.Rout+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
+        notdisk = (tr > rmax) | (tr < rmin)         # - individual grid elements not in disk
+        if self.annulus is not None:
+            #exclude elements between outer disk edge and inner annulus edge
+            # if annulus extends beyond disk
+            if self.Rout < self.annulus_Rin:
+                notdisk = notdisk | ((tr > self.Rout) & (tr < self.annulus_Rin))
+                
+            #exclude elements between outer annulus edge and inner disk edge
+            # if annulus extends interior to disk
+            if self.Rin > self.annulus_Rout:
+                notdisk = notdisk | ((tr > self.annulus_Rout) & (tr < self.Rin))
+                
+        xydisk  =  tr[:,:,0] <= rmax+Smax*self.sinthet  # - tracing outline of disk on observer xy plane
         
 
         # interpolate to calculate disk temperature and densities
         #print 'interpolating onto radiative transfer grid'
         #need to interpolate tempg from the 2-d rcf,zcf onto 3-d tr
-        xind     = np.interp(tr.flatten(),self.rf,range(self.nrc))             #rf,nrc
-        yind     = np.interp(np.abs(tdiskZ).flatten(),self.zf,range(self.nzc)) #zf,nzc
+        xind     = np.interp(tr.flatten(),self.rf,list(range(self.nrc)))             #rf,nrc
+        yind     = np.interp(np.abs(tdiskZ).flatten(),self.zf,list(range(self.nzc))) #zf,nzc
         tT       = ndimage.map_coordinates(self.tempg,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz) #interpolate onto coordinates xind,yind #tempg
         tsigmaD  = ndimage.map_coordinates(self.sigmaD,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)  #interpolate onto coordinates xind,yind #dustg
         tDD      = ndimage.map_coordinates(self.rhoD,[[xind],[yind]],order=1).reshape(self.nphi,self.nr,self.nz)  #interpolate onto coordinates xind,yind #dustg
@@ -227,7 +276,7 @@ class Disk:
         self.sig_col = tsig_col
 
         #Set molecular abundance
-        #self.add_mol_ring(self.Rabund[0]/Disk.AU,self.Rabund[1]/Disk.AU,self.sigbound[0]/Disk.sc,self.sigbound[1]/Disk.sc,self.Xco,initialize=True)
+        self.add_mol_ring(self.Rabund[0]/Disk.AU,self.Rabund[1]/Disk.AU,self.sigbound[0]/Disk.sc,self.sigbound[1]/Disk.sc,self.Xco,initialize=True)
 
         if np.size(self.Xco)>1:
             #gaussian rings
@@ -235,8 +284,8 @@ class Disk:
 
         #Freeze-out
         zap = (tT<self.Tco)
-        #if zap.sum() > 0:
-            #self.Xmol[zap] = 1/5.*self.Xmol[zap]
+        if zap.sum() > 0:
+            self.Xmol[zap] = 1/5.*self.Xmol[zap]
 
         self.add_dust_ring(self.Rin,self.Rout,0.,0.,initialize=True) #initialize dust density to 0
 
@@ -369,7 +418,7 @@ class Disk:
         if sh_relation.lower() == 'linear':
             self.H = self.sh_param * rcf
         elif sh_relation.lower() == 'const':
-            length = np.ones(len(rcf)) * Disk.AU
+            length = np.ones(rcf.shape) * Disk.AU
             self.H = self.sh_param * length
         else:
             print 'WARNING::Could not determine scale height structure from given inputs. Please check sh_relation.'
@@ -386,9 +435,9 @@ class Disk:
         'Return the dust density structure'
         return self.rhoD0
 
-    def grid(self):
-        'Return an XYZ grid (but which one??)'
-        return self.grid
+    # def grid(self):
+    #     'Return an XYZ grid (but which one??)'
+    #     return self.grid
 
     def get_params(self):
         params=[]
@@ -417,5 +466,3 @@ class Disk:
         obs.append(self.nz)
         obs.append(self.zmax/Disk.AU)
         return obs
-
-    
