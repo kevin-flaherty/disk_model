@@ -44,17 +44,20 @@ class Disk:
     Tco = 19.                        # - freeze out
     sigphot = 0.79*sc                # - photo-dissociation column
     
-    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1,0,0,[.76,1000],[10,800],0.09],obs=[180,131,300,170],rtg=True,vcs=True,line='co',ring=None):
+    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,150.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1,0,0,[.76,1000],[10,800],0.09,0.1],obs=[180,131,300,170],rtg=True,vcs=True,line='co',sh_relation='linear',ring=None):
 
         tb = time.clock()
         self.ring=ring
         self.set_obs(obs)   # set the observational parameters
         self.set_params(params) # set the structure parameters
 
-        self.set_structure()  # use obs and params to create disk structure
+        self.set_structure(sh_relation)  # use obs and params to create disk structure
         if rtg:
             self.set_rt_grid()
             self.set_line(line=line,vcs=vcs)
+            
+        'need to set a parameter for scale height here'
+
         tf = time.clock()
         print "disk init took {t} seconds".format(t=(tf-tb))
 
@@ -91,6 +94,7 @@ class Disk:
             self.Wring = self.ring[1]*Disk.AU # width of ring
             self.sig_enhance = self.ring[2] # surface density enhancement (a multiplicative factor) above the background
         self.Lstar      = params[18]
+        self.sh_param   = params[19]
         self.kap = 2.3
         
     def set_obs(self,obs):
@@ -103,7 +107,7 @@ class Disk:
         
     'Main edits to the code go here, David.'
 
-    def set_structure(self):
+    def set_structure(self, sh_relation):
         #tst=time.clock()
         '''Calculate the disk density and temperature structure given the specified parameters'''
         # Define the desired regular cylindrical (r,z) grid
@@ -198,7 +202,7 @@ class Disk:
         #Sc = self.McoG*(2.-self.pp)/((amax**(2-self.pp)-amin**(2-self.pp)))
         #siggas_r = Sc*acf[:,:,0]**(-1*self.pp)
         dsdth = (acf[:,:,0]*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e))/(1+e*np.cos(fcf[:,:,0]))**2
-        siggas = ((siggas_r*np.sqrt(1.-e*e))/(2*np.pi*acf[:,:,0]*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e)))*dsdth
+        siggas = (siggas_r/(self.sh_param*np.sqrt(np.pi)))*(e**(-1*(zf/self.sh_param)))
 
         ## Add an extra ring
         if self.ring is not None:
@@ -206,6 +210,8 @@ class Disk:
             if w.sum()>0:
                 tempg[w] = tempg[w]*(rcdf[w]/(150*Disk.AU))**(self.sig_enhance-self.qq)/((rcf[w].max())/(150.*Disk.AU))**(-self.qq+self.sig_enhance)
 
+        ##calculate the scale height of the disk
+        self.set_scale_height(sh_relation, rcf)
                 
         #print "surface density {t}".format(t=time.clock()-tst)
         if 0:
@@ -716,9 +722,20 @@ class Disk:
         #print Disk.G,self.Mstar,Disk.m0,Disk.kB
         if 0:
             print 'plotting'
-            plt.pcolor(rf[:,0,np.newaxis]*np.ones(nzc),zcf[:,0,:],np.log10(rho0[:,0,:]))
+            plt.pcolor(rcf[:,0,np.newaxis]*np.ones(nzc),zcf[:,0,:],np.log10(rho0[:,0,:]))
             plt.colorbar()
             plt.show()
+            
+    def set_scale_height(self, sh_relation, rcf):
+        'set scale height parameter using given relationship'
+
+        if sh_relation.lower() == 'linear':
+            self.H = self.sh_param * rcf
+        elif sh_relation.lower() == 'const':
+            length = np.ones(len(rcf)) * Disk.AU
+            self.H = self.sh_param * length
+        else:
+            print 'WARNING::Could not determine scale height structure from given inputs. Please check sh_relation.'
 
 
     def density(self):
