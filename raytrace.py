@@ -245,6 +245,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
         bin = 1
     nchans *= bin
     chanstep/=bin
+    chanmin -= (bin-1)*chanstep/2.
     
     if nchans==1:
         flipme=False
@@ -289,7 +290,9 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     
 
     # Do the calculation
-    if flipme:
+    if flipme & (nchans % 2==0):
+        dchans = int(nchans/2.)
+    elif flipme & (nchans % 2 ==1):
         dchans = int(nchans/2.+0.5)
     else:
         dchans = nchans
