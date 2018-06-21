@@ -365,7 +365,7 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
     # - interpolate onto velocity grid of observed star
         velo = chans+vsys
         if obsv is not None:
-            obsv2 = np.arange(len(obsv)*bin)*np.abs(obsv[1]-obsv[0])/bin+np.min(obsv)
+            obsv2 = np.arange(len(obsv)*bin)*(obsv[1]-obsv[0])/bin+obsv[0]
             im2 = np.zeros((xnpix,xnpix,len(obsv2)))
             for ix in range(xnpix):
                 for iy in range(xnpix):
