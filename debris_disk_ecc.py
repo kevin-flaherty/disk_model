@@ -247,7 +247,7 @@ class Disk:
             print 'second sig mass check ',dm.sum()/self.McoG
                   
 
-        rho0 = (siggas/(self.sh_param(np.sqrt(np.pi))))*e**(-1((zcf)/self.sh_param))**2
+        rho0 = (siggas/(self.H(np.sqrt(np.pi))))*e**(-1((zcf)/self.sh_param))**2
         
         self.rho0=rho0
         
