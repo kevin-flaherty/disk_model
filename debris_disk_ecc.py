@@ -247,7 +247,7 @@ class Disk:
             print 'second sig mass check ',dm.sum()/self.McoG
         
      
-        rho0 = (siggas[:,:,np.newaxis]*idz)/(self.H*(np.sqrt(np.pi)))*e**(-((zcf)/self.sh_param))**2
+        rho0 = (siggas[:,:,np.newaxis]*idz)/(self.H*(np.sqrt(np.pi)))*e**(-((zcf)/self.H))**2
         
         self.rho0=rho0
         
@@ -755,7 +755,7 @@ class Disk:
     def get_params(self):
         params=[]
         params.append(self.qq)
-        params.append(self.McoG/Disk.Msun)
+        params.append(self.Mdust/Disk.Msun)
         params.append(self.pp)
         params.append(self.Ain/Disk.AU)
         params.append(self.Aout/Disk.AU)
