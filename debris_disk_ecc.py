@@ -98,14 +98,12 @@ class Disk:
         self.kap = 2.3
         
     def set_obs(self,obs):
-        'Set the observational parameters. These parameters are the number of r, phi, S grid points in the radiative transer grid, along with the maximum height of the grid.'
+        'Set the observational parameters. These parameters are the number of r, phi, S grid points in the radiative transfer grid, along with the maximum height of the grid.'
         self.nr = obs[0]
         self.nphi = obs[1]
         self.nz = obs[2]
         self.zmax = obs[3]*Disk.AU
            
-        
-    'Main edits to the code go here, David.'
 
     def set_structure(self, sh_relation):
         #tst=time.clock()
@@ -616,6 +614,43 @@ class Disk:
             #tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*Disk.mCO)*self.T)) #vturb proportional to cs
 
         self.dBV=tdBV
+
+    def add_dust_gap(self,Rin,Rout):
+        '''Add a gap in the dust with a specified inner and outer radius to the disk,
+           and re-normalize the remaining dust density structure to account for the
+           missing mass'''
+
+        #calculate the mass left after subtracting a ring of size Rin,Rout
+        gap_mass       = 2 * np.pi * Sc * (((Aout*Disk.AU)**(2 + self.pp)) - ((Ain*Disk.AU)**(2 + self.pp))) / (self.pp + 2.)
+        remaining_mass = self.Mdust - gap_mass
+
+        #re-normalize disk density to account for missing gap mas
+        norm_factor = self.Mdust / remaining_mass
+        self.rho0 = self.rho0 * norm_factor
+        
+        #Finally, zero out density where the gap is located
+        w = (self.r>(Ain*Disk.AU)) & (self.r<(Aout*Disk.AU))
+        self.rho0[w] = 0.
+
+    def add_dust_mass(self, ring_mass, Rin, Rout):
+
+        '''Add dust mass in a ring with a specific inner and outer radius to
+           the disk.'''
+
+        #calculate how much mass would initially be located within the radii specified by the user,
+        #and add the ring mass to this initial mass
+        ring_mass *= self.Mearth
+        initial_mass = 2 * np.pi * Sc * (((Aout*Disk.AU)**(2 + self.pp)) - ((Ain*Disk.AU)**(2 + self.pp))) / (self.pp + 2.)
+        added_mass   = initial_mass + ring_mass
+
+        #calculate the normalization factor, added_mass / mass of the dust
+        norm_factor = added_mass / initial_mass
+
+        #multiply the dust within the specified radius 
+        w = (self.r>(Ain*Disk.AU)) & (self.r<(Aout*Disk.AU))
+
+        #re-calculate the dust volume density structure as a function ring radius
+        self.rho0[w] *= norm_factor
 
 
     def add_dust_ring(self,Rin,Rout,dtg,ppD,initialize=False):
