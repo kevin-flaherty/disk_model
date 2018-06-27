@@ -265,18 +265,40 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
 
     if isgas:
     # approximation for partition function
-        if Jnum == 1 and np.abs(freq0-220.398677) < .1:
-            moldat = mol_dat(file='13co.dat')
-        elif Jnum==1 and np.abs(freq0-219.56036) < .1:
-            moldat = mol_dat(file='c18o.dat')
-        elif Jnum==2 and np.abs(freq0-216.)<1:
-            moldat = mol_dat(file='dcoplus.dat')
-        elif Jnum==4:
-            moldat = mol_dat(file='dcoplus.dat')
-        elif Jnum==3:
-            moldat = mol_dat(file='dcoplus.dat')
-        else:
-            moldat = mol_dat()      # Read in data for CO
+        try:
+            #The code recognizes 13CO(2-1), C18O(2-1), DCO+(3-2), HCO+(4-3), HCN(4-3), CO(3-2), CS(7-6), CO(1-0), CO(2-1), CO(6-5), DCO+(5-4), DCO+(4-3), C18O(3-2), C18O(1-0)
+            if Jnum == 1 and np.abs(freq0-220.398677) < .1:
+                moldat = mol_dat(file='13co.dat')
+            elif Jnum==1 and np.abs(freq0-219.56036) < .1:
+                moldat = mol_dat(file='c18o.dat')
+            elif Jnum==2 and np.abs(freq0-216.11258)<1:
+                moldat = mol_dat(file='dcoplus.dat')
+            elif Jnum ==3 and np.abs(freq0-356.734223)<0.1:
+                moldat = mol_dat(file='hcoplus.dat')
+            elif Jnum==3 and np.abs(freq0-354.50547590)<0.1:
+                moldat = mol_dat(file='hcn.dat')
+            elif Jnum==2 and np.abs(freq0-345.7959899)<0.1:
+                moldat = mol_dat(file='co.dat')
+            elif Jnum==6 and np.abs(freq0-342.88285030)<0.1:
+                moldat = mol_dat(file='cs.dat')
+            elif Jnum==0 and np.abs(freq0-115.2712)<0.1:
+                moldat = mol_dat(file='co.dat')
+            elif Jnum==1 and np.abs(freq0-230.538)<0.1:
+                moldat = mol_dat(file='co.dat')
+            elif Jnum==5 and np.abs(freq0-691.4730763)<0.1:
+                moldat = mol_dat(file='co.dat')
+            elif Jnum==2 and np.abs(freq0-329.3305525)<0.1:
+                moldat = mol_dat(file='c18o.dat')
+            elif Jnum == 0 and np.abs(freq-109.7821734)<0.1:
+                moldat = mol_dat(file='c18o.dat')
+            elif Jnum==4 and np.abs(freq0-360.16978)<0.1:
+                moldat = mol_dat(file='dcoplus.dat')
+            elif Jnum==3 and np.abs(freq0-288.143858)<0.1:
+                moldat = mol_dat(file='dcoplus.dat')
+            else:
+                raise ValueError('Make sure that Jnum and freq0 match one of: 13CO(2-1), C18O(2-1), DCO+(3-2), HCO+(4-3), HCN(4-3), CO(3-2), CS(7-6), CO(1-0), CO(2-1), CO(6-5), DCO+(5-4), DCO+(4-3), C18O(3-2), C18O(1-0)')
+        except:
+            raise
         gl = 2.*obs[0]+1
         El = moldat['eterm'][obs[0]]*h*c # - energy of lower level
         Te = 2*El/(obs[0]*(obs[0]+1)*kB)

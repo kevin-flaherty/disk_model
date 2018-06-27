@@ -39,7 +39,7 @@ class Disk:
     kms     = 1e5                     # - convert km/s to cm/s
     GHz     = 1e9                     # - convert from GHz to Hz
     mCO     = 12.011+15.999           # - CO molecular weight
-    mDCO    = mCO+2.014               # - HCO molecular weight
+#    mDCO    = mCO+2.014               # - HCO molecular weight
     mu      = 2.37                    # - gas mean molecular weight
     m0      = mu*mh                   # - gas mean molecular opacity
     Hnuctog = 0.706*mu                # - H nuclei abundance fraction (H nuclei:gas)
@@ -311,23 +311,35 @@ class Disk:
         #self.rhoH2 = trhoH2
 
     def set_line(self,line='co',vcs=True):
-        if line.lower()[:2]=='co':
-            m_mol = 12.011+15.999
-        elif line.lower()[:4]=='c18o':
-            m_mol = 12.011+17.999
-        elif line.lower()[:4]=='13co':
-            m_mol = 13.003+15.999
-        else:
+        self.line = line
+        try:
+            if line.lower()[:2]=='co':
+                self.m_mol = 12.011+15.999
+            elif line.lower()[:4]=='c18o':
+                self.m_mol = 12.011+17.999
+            elif line.lower()[:4]=='13co':
+                self.m_mol = 13.003+15.999
+            elif line.lower()[:3] == 'hco':
+                self.m_mol = 1.01 + 12.01 + 16.0
+            elif line.lower()[:3] == 'hcn':
+                self.m_mol = 1.01 + 12.01 + 14.01
+            elif line.lower()[:2] == 'cs':
+                self.m_mol = 12.01 + 32.06
+            elif line.lower()[:3] == 'dco':
+                self.m_mol = 12.011+15.999+2.014
+            else:
+                raise ValueError('Choose a known molecule [CO, C18O, 13CO, HCO, HCO+, HCN, CS, DCO+] for the line parameter')
             #assume it is DCO+
-            m_mol = Disk.mDCO
+        except ValueError as error:
+            raise
         if vcs:
             #temperature and turbulence broadening
             #tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*Disk.mHCO)*tT+self.vturb**2)
-            tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*m_mol)*self.T)) #vturb proportional to cs
+            tdBV = np.sqrt((1+(self.vturb/Disk.kms)**2.)*(2.*Disk.kB/(Disk.Da*self.m_mol)*self.T)) #vturb proportional to cs
 
         else: #assume line.lower()=='co'
             #temperature and turbulence broadening
-            tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*m_mol)*tT+self.vturb**2)
+            tdBV = np.sqrt(2.*Disk.kB/(Disk.Da*self.m_mol)*tT+self.vturb**2)
             
 
         self.dBV=tdBV
