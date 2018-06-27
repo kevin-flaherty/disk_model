@@ -44,7 +44,7 @@ class Disk:
     Tco = 19.                        # - freeze out
     sigphot = 0.79*sc                # - photo-dissociation column
     
-    def __init__(self,params=[-0.5,0.09,1.,10.,1000.,1500.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1,0.342,46,[.76,1000],[10,800],0.09,0.1],obs=[180,131,300,170],rtg=True,vcs=True,line='co',sh_relation='linear',ring=None):
+    def __init__(self,params=[-0.5,9e-6,1.,30.,140.,1500.,51.5,2.3,1e-4,0.01,33.9,19.,69.3,-1,0.342,46,[.76,1000],[10,800],1,0.1],obs=[180,131,300,170],rtg=True,vcs=True,line='co',sh_relation='linear',ring=None):
 
         tb = time.clock()
         self.ring=ring
@@ -93,7 +93,7 @@ class Disk:
             self.Rring = self.ring[0]*Disk.AU # location of ring
             self.Wring = self.ring[1]*Disk.AU # width of ring
             self.sig_enhance = self.ring[2] # surface density enhancement (a multiplicative factor) above the background
-        self.Lstar      = params[18]
+        self.Lstar      = params[18]  # this is the coefficient for the luminosity of the star used in the tempg line
         self.sh_param   = params[19]
         self.kap = 2.3
         
@@ -201,7 +201,8 @@ class Disk:
         #siggas_r = Sc*acf[:,:,0]**(-1*self.pp)
         dsdth = (acf[:,:,0]*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e))/(1+e*np.cos(fcf[:,:,0]))**2
         siggas = ((siggas_r*np.sqrt(1.-e*e))/(2*np.pi*acf[:,:,0]*np.sqrt(1+2*e*np.cos(fcf[:,:,0])+e*e)))*dsdth
-
+        
+     
         ## Add an extra ring
         if self.ring is not None:
             w = np.abs(rcf-self.Rring)<self.Wring/2.
@@ -245,7 +246,15 @@ class Disk:
             print 'second sig mass check ',dm.sum()/self.McoG
         
      
-        rho0 = (siggas[:,:,np.newaxis]*idz)/(self.H*(np.sqrt(np.pi)))*e**(-((zcf)/self.H))**2
+        rho0 = ((siggas[:,:,np.newaxis]*idz)/(self.H*np.sqrt(np.pi))) * np.exp(-1*(zcf/self.H)**2)
+        
+#        print self.Mdust
+#        print self.pp
+#        print self.Aout
+#        print self.Ain
+#        print rcf[100,0,0]
+#        print self.H[100,0,0]
+        
         
         self.rho0=rho0
         
@@ -276,7 +285,11 @@ class Disk:
         #print dPdr[:5,0,0],dPdr[200:205,0,500]
         #dPdr = 0#(np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
         
+        plt.plot(zcf[100,0,:],rho0[100,0,:])
+        plt.show()
         
+        print Sc
+        print siggas_r[100,0]
         #Calculate velocity field
         #Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
         #w = np.isnan(Omg)
@@ -874,5 +887,9 @@ class Disk:
             print 'power law: {:.3f}'.format(psi)
 
         return H
-
+    
+    def graph_t(self):        
+        plt.loglog(self.rcf,self.tempg)
+        plt.show()
+        
     
