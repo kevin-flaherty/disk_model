@@ -342,11 +342,11 @@ def total_model(disk,imres=0.05,distance=122.,chanmin=-2.24,nchans=15,chanstep=0
         # plot tau=1 surface in central channel
         plot_tau1(disk,cube2[:,:,:,nchans/2-1],cube3[:,:,:,nchans/2-1])
     if (extra == 2.1) or (extra==2.2):
-        for r in range(10,500,100):#20
+        for r in range(10,500,20):#20
             if extra > 2.1:
-                flux_range(disk,cube,cube3,r,height=False) #cube3 is cumulative flux along each sight line [nr,nphi,ns,nchan]
+                flux_range(disk,cube3,r,height=False) #cube3 is cumulative flux along each sight line [nr,nphi,ns,nchan]
             else:
-                flux_range(disk,cube,cube3,r,height=True)
+                flux_range(disk,cube3,r,height=True)
     if extra>2.5:
         print '*** Creating tau=1 image ***'
         ztau1tot=np.zeros((disk.nphi,disk.nr,nchans))
@@ -604,6 +604,7 @@ def findtau1(disk,tau,Inu,cube3,flag=0.):
 
 def plot_tau1(disk,tau,tau_dust):
     '''Plot the tau=1 surface on top of the disk structure plot'''
+    import matplotlib.pyplot as plt
     #ztau1 = findtau1(disk,tau,Inu)
     plt.figure()
     plt.rc('axes',lw=2)
@@ -654,50 +655,33 @@ def plot_tau1(disk,tau,tau_dust):
     #    print i,tau[i,:,:].max()
     
 
-def flux_range(disk,cube,cube3,r0,height=True):
-    '''For a given radius, derive the range of heights over which 5%-95% of the flux originate.'''
-    #r0 = 65*disk.AU#65,150,260
-    r0*=disk.AU
+def flux_range(disk,cube3,r0,height=True):
+    ''' For a given radius, derive the range of heights over which 25%-75% of the flux originate.'''
+    r0*= disk.AU
     radius = disk.r
     z = disk.Z/disk.AU
-    nr = disk.nr
-    nphi = disk.nphi
     nchans = cube3.shape[3]
-    ztau_up = np.zeros((nphi,nr,nchans))-1000.
-    ztau_low = np.zeros((nphi,nr,nchans))-1000.
-    for ir in range(nr):
-        for iphi in range(nphi):
-            for iv in range(nchans):
-                w = (radius[iphi,ir,:]>(r0-20*disk.AU)) & (radius[iphi,ir,:]<(r0+20*disk.AU))
-                if w.sum()>0:
-                    if cube3[iphi,ir,-1,iv] >0:
-                        if height:
-                            ztau_up[iphi,ir,iv] = np.interp(.05*cube3[iphi,ir,-1,iv],cube3[iphi,ir,:,iv],z[iphi,ir,:])
-                            ztau_low[iphi,ir,iv] = np.interp(.95*cube3[iphi,ir,-1,iv],cube3[iphi,ir,:,iv],z[iphi,ir,:])
-                        else:
-                            ztau_up[iphi,ir,iv] = np.interp(.05*cube3[iphi,ir,-1,iv],cube3[iphi,ir,:,iv],disk.T[iphi,ir,:])
-                            ztau_low[iphi,ir,iv] = np.interp(.95*cube3[iphi,ir,-1,iv],cube3[iphi,ir,:,iv],disk.T[iphi,ir,:])
-                    else: 
-                        ztau_up[iphi,ir,iv] = -1000
-                        ztau_low[iphi,ir,iv] = -1000
-    w = np.isinf(ztau_up)
-    if w.sum()>0:
-        ztau_up[w] = -1000
-    w = np.isinf(ztau_low)
-    if w.sum()>0:
-        ztau_low[w] = -1000
-    if height:
-        wuse = (ztau_up>-120) & (ztau_up<120)
-    else:
-        wuse = (ztau_up>0) & (ztau_up<1000)
-    ztau_up_avg = np.sum(cube3[:,:,-1,:][wuse]*ztau_up[wuse])/np.sum(cube3[:,:,-1,:][wuse])
-    if height:
-        wuse = (ztau_low>-120) & (ztau_low<120)
-    else:
-        wuse = (ztau_low>0) & (ztau_low<1000)
-    ztau_low_avg = np.sum(cube3[:,:,-1,:][wuse]*ztau_low[wuse])/np.sum(cube3[:,:,-1,:][wuse])
-    print 'R, Zup, Zlow: ',r0/disk.AU,ztau_up_avg,ztau_low_avg
+    ztau_all = np.array([])
+    flux_all = np.array([])
+    w = (radius>(r0-10*disk.AU)) & (radius<(r0+10*disk.AU))
+    for iv in range(nchans):
+        cube3v = cube3[:,:,:,iv]-np.roll(cube3[:,:,:,iv],1,axis=2)
+        if height:
+            ztau_all = np.concatenate((ztau_all,cube3v[w]*z[w]))
+        else:
+            ztau_all = np.concatenate((ztau_all,cube3v[w]*disk.T[w]))
+        flux_all = np.concatenate((flux_all,cube3v[w]))
 
+    w = flux_all>0
+    ztau_all = ztau_all[w]/flux_all[w]
+    flux_all = flux_all[w]
+    wuse = flux_all>.01*flux_all.max()
+    w = np.argsort(ztau_all[wuse])
+    if height:
+        print 'R, Z(25%), Z(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))]
+    else:
+        print 'R, T(25%), T(75%): ',r0/disk.AU,ztau_all[wuse][w][int(.25*len(w))],ztau_all[wuse][w][int(.75*len(w))]
+    
 
 def mol_dat(file='co.dat'):
     import numpy as np
