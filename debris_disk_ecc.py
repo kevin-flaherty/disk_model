@@ -225,7 +225,7 @@ class Disk:
 #            plt.colorbar()
             plt.show()
             
-        if 0:
+        if 1:
             # check that siggas adds up to Mdisk #
             df=ff[1]-ff[0]
             dA = 0.5*(rp1-rm1)*df*rf
@@ -234,7 +234,7 @@ class Disk:
             mcheck=(siggas*dA)
             mcheck=mcheck.sum()
             #print "sig mass check (should be 1)"
-            #print mcheck/self.McoG
+            #print mcheck/self.Mdust
 
             #dsdth = (acf*(1-e*e)*np.sqrt(1+2*e*np.cos(fcf)+e*e))/(1+e*np.cos(fcf))**2
             dr = af-np.roll(af,1)
@@ -242,21 +242,25 @@ class Disk:
             dr = dr[:,np.newaxis]*np.ones(nfc)
             dm = (siggas*dr*acf[:,:,0]*df)
             #dm = (linrho*dA*dsdth*2*np.pi)
-#dm[0] = 0
-            print 'second sig mass check ',dm.sum()/self.McoG
+            #dm[0] = 0
+            print 'second sig mass check ',dm.sum()/self.Mdust
         
      
         rho0 = ((siggas[:,:,np.newaxis]*idz)/(self.H*np.sqrt(np.pi))) * np.exp(-1*(zcf/self.H)**2)
         
-#        print self.Mdust
-#        print self.pp
-#        print self.Aout
-#        print self.Ain
-#        print rcf[100,0,0]
-#        print self.H[100,0,0]
-        
-        
         self.rho0=rho0
+        
+        deltaz = np.roll(zcf,-1,axis=2)-zcf
+        sigmar = np.zeros(500)
+        
+        print deltaz[100,0,:]
+        
+        for i in range(0,500):
+            sigmar[i] = np.sum(rho0[i,0,:]*deltaz[i,0,:])
+        
+      
+        plt.plot(rcf[:,0,0],sigmar)
+        plt.show()
         
         if 0:
             #check if rho0 adds up to Mdisk
@@ -269,13 +273,13 @@ class Disk:
             #dr[nac-1]=rcf[nac-1]-rcf[nac-2]
             dz = zcf-np.roll(zcf,1,axis=2)
             dz[:,:,0] = 0#zcf[:,:,1]
-            dr = acf-np.roll(acf,1,axis=0)
+            dr = rcf-np.roll(rcf,1,axis=0)
             dr[0] = 0#rcf[1]
-            dV=acf*df*dr*dz
+            dV=rcf*df*dr*dz
             mcheck=self.rho0*dV
             mcheck=mcheck.sum()
             print "rho mass check (should be 1/2 as z is only one half of disk)"
-            print mcheck/self.McoG
+            print mcheck/self.Mdust
 
         #print "hydro done {t}".format(t=time.clock()-tst)
         #Calculate radial pressure differential
@@ -285,11 +289,8 @@ class Disk:
         #print dPdr[:5,0,0],dPdr[200:205,0,500]
         #dPdr = 0#(np.roll(Pgas,-1,axis=0)-Pgas)/(np.roll(rcf,-1,axis=0)-rcf)
         
-        plt.plot(zcf[100,0,:],rho0[100,0,:])
-        plt.show()
-        
-        print Sc
-        print siggas_r[100,0]
+
+
         #Calculate velocity field
         #Omg = np.sqrt((dPdr/(rcf*self.rho0)+Disk.G*self.Mstar/(rcf**2+zcf**2)**1.5))
         #w = np.isnan(Omg)
@@ -892,4 +893,6 @@ class Disk:
         plt.loglog(self.rcf,self.tempg)
         plt.show()
         
+        
+    
     
