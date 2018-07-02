@@ -7,7 +7,7 @@ from raytrace import *
 from scipy.optimize import curve_fit
 import scipy.interpolate
 from scipy.integrate import cumtrapz,trapz
-from galario.double import sampleImage
+from galario import double as gdouble
 
 
 ##############################################################################
@@ -166,6 +166,8 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
      If the data is line emission then the data has an extra dimension covering the >1 channels. Set this keyword to ensure that the data is read in properly. Conversely, if you are comparing continuum data then set this keyword to False.
 
 '''
+    #Limit the multi-threading of Galario (necessary on the computing cluster)
+    gdouble.threads(1)
 
     # - Read in object visibilities
     obj = fits.open(datfile+'.vis.fits')
@@ -201,11 +203,11 @@ def compare_vis_galario(datfile='data/HD163296.CO32.regridded.cen15',modfile='mo
         real_model = np.zeros(real_obj.shape)
         imag_model = np.zeros(imag_obj.shape)
         for i in range(real_obj.shape[1]):
-            vis = sampleImage(np.flipud(model[i,:,:]).byteswap().newbyteorder(),dxy,u_obj,v_obj)
+            vis = gdouble.sampleImage(np.flipud(model[i,:,:]).byteswap().newbyteorder(),dxy,u_obj,v_obj)
             real_model[:,i] = vis.real
             imag_model[:,i] = vis.imag
     else:
-        vis = sampleImage(model.byteswap().newbyteorder(),dxy,u_obj,v_obj)
+        vis = gdouble.sampleImage(model.byteswap().newbyteorder(),dxy,u_obj,v_obj)
         real_model = vis.real
         imag_model = vis.imag
 
