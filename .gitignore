@@ -12,6 +12,4 @@ aumic_model.py
 diskG.py*
 single_modelG.py*
 *.sav
-
-
-
+.DS_Store
